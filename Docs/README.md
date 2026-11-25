@@ -85,7 +85,7 @@ The following documents are planned for upcoming documentation tasks. They do no
 No further product documents are currently planned. Open product questions are tracked in the [requirements](product/requirements.md#open-product-decisions) rather than in speculative documents.
 
 ### Architecture
-- ADRs, including: Modular Monolith as the architectural style; local prayer-time calculation; sequential voice-channel processing; the delivery-ledger semantics; and the choice of geocoding provider once finalized. The SQLite persistence choice is already implemented but still lacks a recorded ADR.
+- ADRs, including: Modular Monolith as the architectural style; local prayer-time calculation; sequential voice-channel processing; the delivery-ledger semantics; and curated-data-only location selection. The SQLite persistence choice is already implemented but still lacks a recorded ADR.
 
 ### Technical
 Subsystem deep-dives or supplementary technical notes if needed beyond [`technical/technical-design.md`](technical/technical-design.md) and the completed [`scheduling-design.md`](technical/scheduling-design.md).

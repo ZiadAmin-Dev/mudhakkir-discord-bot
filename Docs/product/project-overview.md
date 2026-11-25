@@ -65,7 +65,7 @@ The default calculation method should be appropriate for Egypt — the **Egyptia
 
 Timezone handling must account for daylight saving time. A fixed UTC offset must not be used as a substitute for an IANA timezone.
 
-The location search/geocoding provider is **not yet finalized**.
+Locations come from curated offline country/city data through the Location module's public interface. Administrators select a country and, when required, a city from Discord select menus using canonical codes/IDs; there is no external geocoding or fuzzy name search in the initial release.
 
 ### Voice channel eligibility
 
@@ -149,8 +149,8 @@ The following questions are open and must not be treated as settled. They are ca
 - Voice selection, volume, and audio file format/organization.
 
 ### Location and prayer calculation
-- The geocoding/location search provider.
-- How administrators select a location and how ambiguous matches are resolved.
+- Whether a manual timezone override is offered in a later release (initial setup uses the timezone from Location).
+- Country/city select-menu pagination details if the curated list grows beyond 25 options.
 - Which calculation methods are exposed in configuration.
 - How timezone and calculation changes affect already-scheduled events.
 

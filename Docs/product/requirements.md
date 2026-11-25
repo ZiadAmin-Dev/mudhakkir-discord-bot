@@ -65,7 +65,7 @@ Related documents:
 
 **Open in this area:**
 
-- The geocoding/location provider and how ambiguous location matches are resolved (FR-002).
+- Location selection UX details beyond the initial select-menu flow, such as a manual timezone override in a later release (FR-002). The location source itself is fixed: curated offline country/city data exposed through `ILocationService`; no external geocoding or fuzzy name matching.
 - The set of supported calculation methods (FR-003, FR-024).
 - Handling of locations and seasons where a prayer time is undefined or anomalous, such as high-latitude cases.
 - Whether the displayed prayer times include additional context such as the calculation method or date (FR-026, FR-028).
@@ -173,7 +173,7 @@ These decisions are not requirements. They need explicit approval before they ar
 | Configuration | Exact administrator permission | FR-012, NFR-009 |
 | Configuration | Enable/disable granularity | FR-014 |
 | Configuration | Whether setup may save a draft, auto-enable announcements, and how re-running setup behaves | FR-001, FR-008 |
-| Location | Geocoding provider and ambiguous-match handling | FR-002 |
+| Location | Optional future timezone override; initial flow uses Location select menus and canonical codes/IDs | FR-002 |
 | Prayer calculation | Supported methods and high-latitude behavior | FR-003, FR-024 |
 | Voice | Behavior when no channel is eligible | FR-043 |
 | Voice | Stage channel and AFK channel support; other eligibility edge cases | FR-043, FR-045 |

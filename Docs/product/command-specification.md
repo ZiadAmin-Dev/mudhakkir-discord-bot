@@ -40,16 +40,19 @@ An authorized server administrator in the server being configured (BR-063). The 
 
 No slash-command options are required beyond invoking the command. Configuration is collected through follow-up interactions. The proposed sequence is:
 
-1. **Location:** search by city and country, then select a result that provides coordinates and an IANA timezone.
-2. **Timezone:** confirm the IANA timezone associated with the selected location, or choose a valid one if the search result is incomplete.
-3. **Calculation method:** choose from the supported methods; the default is the Egyptian General Authority of Survey.
-4. **Text channel:** select the channel that receives prayer-time reminders.
-5. **Mention target:** choose `@everyone` (the default) or one specific role from this server.
-6. **Lead time:** enter the number of minutes before prayer for the voice reminder; the default is 10.
-7. **Private voice channels:** choose whether restricted voice channels are included.
-8. **Review and confirm:** show a summary of all values before saving.
+1. **Country:** the bot retrieves available countries through `ILocationService.listCountries()` and displays a Discord String Select Menu. The option value is the **canonical country code**; the label is the country name from Location. The administrator picks an option — country names are never typed, translated, aliased, or fuzzy-matched.
+2. **City:** the bot validates the selected code and asks Location to resolve it. If Location reports that a city is required, the bot displays a city select menu built from `ILocationService.listCities(countryCode)`, with the canonical city ID/name as the option value. Otherwise the country's default city from Location is used.
+3. **Timezone and coordinates:** taken from the location resolved by `LocationService.resolve()`; no manual coordinate entry is part of this flow. Whether a manual timezone override is offered later is **Open**.
+4. **Calculation method:** defaults to the method returned by Location for the resolved country/city; the administrator may choose any supported method.
+5. **Text channel:** select the channel that receives prayer-time reminders.
+6. **Mention target:** choose `@everyone` (the default) or one specific role from this server.
+7. **Lead time:** enter the number of minutes before prayer for the voice reminder; the default is 10.
+8. **Private voice channels:** choose whether restricted voice channels are included.
+9. **Review and confirm:** show a summary of all values before saving.
 
-The exact interaction components — modals, select menus, buttons, or a sequence of messages — are implementation details and are not decided. Whether a manual coordinate entry fallback exists is also Open.
+Location owns all location business rules (country existence, city membership, required-city and default-city rules, final resolution). The Discord layer only validates the interaction and the selected option, then passes the canonical code/ID to Location; it does not duplicate reference data or location rules.
+
+Discord String Select Menus allow at most 25 options. Country and city menus must be paginated (for example, with Previous/Next buttons carrying the page index) when the list from Location exceeds 25 entries. Current curated data has 9 countries and at most 3 cities per country, so pagination is a forward-looking requirement. Other interaction components for the remaining steps remain an implementation detail.
 
 ### Expected output or interaction
 
@@ -80,8 +83,8 @@ The exact interaction components — modals, select menus, buttons, or a sequenc
 | --- | --- |
 | Used outside a server | Reject with an explanation; make no changes. |
 | Invoking member is not authorized | Reject; make no changes. |
-| Location search returns no result or is unavailable | Report the failure and allow retry. Provider failure behavior is Open. |
-| Location match is ambiguous | Ask the administrator to choose; the resolution rule is Open. |
+| Location reference data is unavailable or the selected option is no longer valid | Report the failure, discard the current menu, and allow retry; no partial configuration is saved. |
+| Selected country requires a city but no city options are available | Report the configuration problem; do not guess a city or fall back to coordinates. |
 | Invalid timezone, method, or lead time | Reject the value with an actionable message; keep the previous valid value. |
 | Mention target is a role ID that does not exist in this server, or is an unsupported value | Reject the choice and ask for another; keep the previous valid target. |
 | Text channel is deleted, inaccessible, or unsupported | Reject the selection and ask for another. |
@@ -93,7 +96,7 @@ The exact interaction components — modals, select menus, buttons, or a sequenc
 
 ### Open decisions
 
-- Location provider, search flow, ambiguous-result handling, and manual coordinate entry.
+- Whether a manual timezone override is offered in a later release (the initial flow uses the timezone from Location).
 - Whether setup can be partially saved as a draft.
 - Whether setup automatically enables announcements or requires `/enable`.
 - Whether re-running `/setup` edits or replaces the existing configuration.

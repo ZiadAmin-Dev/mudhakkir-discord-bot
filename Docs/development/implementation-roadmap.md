@@ -266,7 +266,7 @@ Implement Discord slash commands and user interactions: administrator authorizat
 
 ### Main Modules & Files Involved
 - `src/discord/authorization.ts` — Server-side permission validator (`ManageGuild` / `Administrator`)
-- `src/discord/commands/*.ts` & `src/discord/flows/*.ts` — Validate raw interaction input, normalize it into canonical values (trim, casing, enums/numbers), then call module services with those values. No business rules here.
+- `src/discord/commands/*.ts` & `src/discord/flows/*.ts` — Validate raw interaction input and convert it to canonical values (trim free text, parse enums/numbers; country/city values come from Location select menus, not typed text), then call module services with those values. No business rules here.
 - `src/discord/command-router.ts` — Routes incoming interactions to handlers
 - `src/discord/commands/setup.ts` & `src/discord/flows/setup-flow.ts` — Guided multi-step configuration sequence
 - `src/discord/commands/settings.ts` & `src/discord/flows/settings-flow.ts` — View/update settings
@@ -282,10 +282,14 @@ Implement Discord slash commands and user interactions: administrator authorizat
 - **Milestone 6** (Voice announcements).
 
 ### Essential Tests & Acceptance Criteria
-- [ ] Command handlers reject malformed input with an actionable ephemeral message and pass only validated, normalized values to services; no raw Discord interaction data reaches a service (ARCH-021).
-- [ ] Non-administrators attempting to invoke configuration commands are rejected with an ephemeral permission error (BR-063, BR-064).
-- [ ] `/setup` successfully guides an administrator through location selection, timezone confirmation, text channel selection, and mention preference, persisting a valid configuration.
-- [ ] `/test` executes voice and/or text announcements on demand without consuming or altering upcoming scheduled prayer events (BR-051).
+- [ ] Command handlers reject malformed input with an actionable ephemeral message and pass only canonical values to services; no raw Discord interaction data reaches a service (ARCH-021).
+- [ ] Non-administrators attempting to invoke configuration commands are rejected with an ephemeral permission error (BR-063, BR-064), using authoritative interaction context rather than user-supplied IDs.
+- [ ] `/setup` country and city selection use paginated 25-option select menus populated from `ILocationService.listCountries()` / `listCities()`; option values are canonical codes/IDs and no country text normalization or fuzzy search is performed.
+- [ ] Location business rules (country existence, required city, default city, city membership, final resolution) are applied only by Location; the Discord layer does not duplicate them or the reference data.
+- [ ] Component interactions route to the correct user- and guild-bound active flow; expired, cancelled, wrong-user, invalid-state, and duplicate submissions are contained with an ephemeral notice and no state change.
+- [ ] Interactions are acknowledged within Discord's deadline via reply/defer; configuration flows are ephemeral, `/prayer-times` is public by default (Proposed), and unexpected errors never expose stack traces or database details.
+- [ ] `/setup` successfully guides an administrator through location, text channel, mention preference, lead time, and private-channel choice, persisting a valid configuration on final confirmation only.
+- [ ] `/test` executes voice and/or text announcements on demand without consuming or altering upcoming scheduled prayer events or delivery-ledger records (BR-051).
 - [ ] `/disable` immediately suspends automated reminders; `/enable` recalculates and arms upcoming reminders without replaying missed events (BR-047).
 
 ---

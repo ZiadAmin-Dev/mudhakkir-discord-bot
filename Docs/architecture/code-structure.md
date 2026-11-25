@@ -193,13 +193,14 @@ Everything else in the tree is planned. In particular, the command layer and aut
 | Path | Responsibility |
 | --- | --- |
 | `discord/client.ts` | Constructs `discord.js` Client with required gateway intents (`Guilds`, `GuildVoiceStates`) and error handlers. |
-| `discord/command-router.ts` | Maps incoming slash command interactions to handlers and enforces authorized guild contexts. |
-| `discord/authorization.ts` | Checks that the invoking member possesses required administrative permissions (`ManageGuild`/`Administrator`). |
-| `discord/commands/*.ts` | Presentation command handlers (controller role). Receive raw Discord input, authorize, validate its shape, normalize it into canonical values, delegate to domain services via constructor injection, and respond ephemerally. No business rules here. |
-| `discord/flows/*.ts` | Multi-step interactive setup and configuration flows using Discord modals, buttons, and select menus. |
-| `discord/discord-channels.ts` | Inspects channel existence, types, human membership, and effective bot permissions for voice eligibility. |
-| `discord/discord-messages.ts` | Sends text reminders to the configured channel with isolated mentions (`@everyone` or role snowflake). |
-| `discord/discord-voice.ts` | Manages voice channel join, leave, and state transitions using `@discordjs/voice`. |
+| `discord/command-router.ts` | Planned. Dispatches slash commands and routes component interactions to the correct active flow; owns the in-memory flow registry keyed by `guildId:userId` with expiry, cancellation, and wrong-user rejection. |
+| `discord/authorization.ts` | Planned. Checks that the invoking member may run the command (`ManageGuild`/`Administrator` proposed) using authoritative interaction context; separates Discord platform permissions from application command access. |
+| `discord/commands/*.ts` | Planned presentation handlers (controller role). Validate raw input shape, convert it to canonical values, delegate to module services via constructor injection, acknowledge/defer, and respond ephemerally. No business rules or Location rule duplication here. |
+| `discord/flows/*.ts` | Planned multi-step setup and settings flows using select menus, buttons, and modals. Bound to one user and guild; state dies on expiry, cancellation, invalid state, or restart. |
+| `discord/discord-channels.ts` | Implemented. Inspects channel existence, types, human membership, effective bot permissions, and privacy for voice eligibility. |
+| `discord/discord-messages.ts` | Implemented. Sends text reminders to the configured channel with isolated mentions (`@everyone` or role snowflake). |
+| `discord/discord.errors.ts` | Implemented. Named not-found and permission errors for text delivery. |
+| `discord/voice-transport.ts` | Implemented. Manages voice channel join, playback, timeout, and cleanup using `@discordjs/voice`. |
 
 ### Business modules (Application & Domain Layers)
 
@@ -254,14 +255,14 @@ Everything else in the tree is planned. In particular, the command layer and aut
 | --- | --- |
 | `infrastructure/persistence/storage.ts` | Implemented. Shared SQLite connection factory (`better-sqlite3`) enabling WAL mode and foreign keys, plus the migration runner. Used by every feature store; no product queries live here. |
 | `infrastructure/persistence/migrations/` | Implemented. Versioned SQL migration scripts (`001_initial_schema.sql`) shared by all modules. Note: `tsc` does not copy `.sql` files into `dist`; production builds must copy them explicitly. |
-| `infrastructure/audio/audio-library.ts` | Maps prayers to local 48kHz stereo OGG/Opus audio assets and verifies file readability. |
-| `infrastructure/audio/audio-player.ts` | Plays audio files through `@discordjs/voice` audio player and manages playback lifecycle. |
+| `infrastructure/audio/audio-library.ts` | Implemented. Maps prayers to local 48kHz stereo s16le PCM assets and verifies file readability. |
+| `infrastructure/audio/audio-player.ts` | Implemented. Creates raw PCM audio resources and plays them through `@discordjs/voice`. |
 | `infrastructure/logging/pino-logger.ts` | Implemented. The only concrete logger: `createLogger()` builds a Pino structured logger with a `pino-pretty` development transport and an ISO timestamp in production. It returns the shared `Logger` contract; it does not define or re-export that type. |
 | `infrastructure/logging/index.ts` | Barrel exporting `createLogger` only. Application code obtains the logger here; the composition root is the sole caller. |
 | `shared/di/tokens.ts` | Implemented. Centralized dependency injection tokens (`TOKENS`) used for constructor injection across layers. |
 | `shared/logging/logger.port.ts` | Implemented. The single source of the `Logger` interface and `LogMethod` type. Imported by services and adapters that only need the contract; no dependency on Pino. |
 | `shared/error/app-error.ts` | Implemented. Domain error hierarchy rooted in `AppError` (`NotFoundError`, `ValidationError`, `PermissionError`, `ConfigurationError`). |
-| `shared/clock.ts` | Planned. Clock interface allowing deterministic time mocking in tests; not present yet. |
+| `shared/clock.ts` | Implemented. `Clock` port and `SystemClock`; tests inject a fake clock. |
 
 **Proposed `shared/` rule:** it may contain only generic, dependency-free primitives used by several modules, such as clock and logger types. It must not become a home for business logic, cross-module helpers, or a generic "utils" dumping ground.
 
@@ -313,8 +314,9 @@ This rule applies to every feature store, including the implemented delivery-led
 
 The `discord/` folder is the presentation/controller boundary. It owns **input validation and normalization**, not business validation:
 
-- Command handlers and flows receive raw Discord values, validate their shape, authorize the caller, and normalize them into canonical form (for example: trim whitespace, uppercase country codes, parse numbers/enums) before calling a service.
-- Module services receive **already-normalized data** and apply only business rules and domain invariants. They do not trim, change casing, parse, validate request shape, or otherwise reformat input, and they never see raw Discord interaction objects. Canonical form means uppercase country codes, exact city IDs/names from the reference data, and no surrounding whitespace.
+- Command handlers and flows receive raw Discord values, validate their shape, authorize the caller, and normalize them into canonical form (for example: trim free text, parse numbers/enums, validate channel/role IDs) before calling a service.
+- Country and city selection are **select menus**, not typed text. The option values come from `LocationService.listCountries()` and `listCities(countryCode)` and are already canonical (country code, city ID/name). Discord validates that the selected value is one of the offered options and that the interaction belongs to the active flow; it does not normalize, translate, or fuzzy-match country names. Services still receive the canonical code/ID.
+- Module services receive **already-normalized data** and apply only business rules and domain invariants. They do not trim, change casing, parse, validate request shape, or otherwise reformat input, and they never see raw Discord interaction objects. Canonical form means exact codes/IDs from the reference data and no surrounding whitespace.
 - Keep the two kinds of checks separate: a malformed or badly formatted value is rejected at the presentation boundary; a well-formed value that violates a business rule is rejected by the owning service with the module's named error.
 - Curated reference data files are reviewed as trusted input and are not validated at load time. Runtime validation in a module is limited to values leaving it (for example, resolved output or database rows).
 

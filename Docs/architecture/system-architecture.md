@@ -262,16 +262,38 @@ Gateway reconnection is an adapter concern. After reconnecting, the process must
 
 ### 5.1 Interaction flow
 
-1. The Discord adapter receives an interaction.
-2. The command router identifies the command and rejects unknown or direct-message use where required.
-3. The authorization check confirms the invoking member may perform the operation. The exact Discord permission is **Open**.
-4. The command handler validates the input shape, normalizes it into canonical values (for example trimmed strings and uppercase country codes), then delegates to a module service or an interaction flow. Business rules stay in the service.
+1. The Discord adapter receives a slash command or component interaction.
+2. `command-router.ts` identifies the command or resolves the component interaction to an active flow, and rejects unknown or direct-message use where required.
+3. `authorization.ts` confirms the invoking member may perform the operation using the interaction's authoritative guild and member context. The exact Discord permission is **Open** (BR-064).
+4. The command handler or flow validates the input shape, converts it to canonical values, and delegates to a module service. Business rules stay in the service.
 5. A successful mutation goes through the **Settings** module. It validates the full proposed configuration, persists atomically, and notifies the scheduler so that schedule-affecting changes can rebuild future events.
-6. The adapter formats and sends the response. Response wording and visibility remain Open/Proposed as specified in the command documentation.
-
-**Proposed:** multi-step setup and settings flows keep their in-progress state in memory, keyed by guild and user, and persist nothing until the administrator confirms. A restart therefore discards an unfinished draft. Whether drafts should survive restart is **Open**.
+6. The adapter acknowledges or defers, then formats and sends the response. Response wording and visibility follow §5.1.1 and the command documentation.
 
 Command handlers must not contain prayer calculation, eligibility policy, or persistence logic. They parse, authorize, call, and present.
+
+### 5.1.1 Discord layer responsibilities
+
+The `discord/` folder is the presentation and transport boundary. Discord-specific details stay here; application modules never receive interaction objects.
+
+| Area | Responsibility | Boundary |
+| --- | --- | --- |
+| Interaction handling | Receive slash commands and component interactions; take `guildId`, `userId`, and `channelId` from the interaction itself; dispatch to the right handler or flow; contain failures per interaction so one bad interaction cannot affect another. | Never trust user-supplied identifiers when the interaction provides an authoritative value. |
+| Input validation & normalization | Validate required options, types, formats, and lengths; trim free text where applicable; convert Discord values to canonical application input; reject malformed input with actionable feedback. | This is transport validation only. Country/city selection uses select menus whose values are already canonical codes/IDs — no typed country names, aliases, Arabic-name matching, or fuzzy search (see §5.4). |
+| Business validation boundary | Use Location's public results (for example `cityRequired`, `defaultCity`, or a resolved location) to decide which UI step comes next. | Location alone verifies that a country exists, a city belongs to it, a city is mandatory, default-city rules apply, and the final location resolves. Discord must not reimplement these rules or duplicate country/city reference data. |
+| Authorization | Enforce command access with a server-side check (BR-063/BR-064); separate **Discord platform permissions** (what the bot can do at the point of use, BR-060/BR-061) from **application access rules** (who may invoke a command). | Interface hiding or `default_member_permissions` is not a security boundary. |
+| Routing & flow orchestration | `command-router.ts` dispatches slash commands and routes component interactions to the correct active flow; command handlers coordinate module services; `flows/setup-flow.ts` and `flows/settings-flow.ts` own multi-step state. | Business logic stays in modules. Flow ownership, expiry, cancellation, and invalid-state behavior are defined below. |
+| Presentation & transport | Send/edit messages, embeds, and components; perform channel operations and Discord permission checks; integrate the voice transport. | No Discord API types or failures leak into application modules. |
+| Error handling | Translate known `AppError` instances into actionable ephemeral responses; log unexpected errors with `guildId`, `userId`, `commandName`, and `interactionId`; never expose stack traces or database errors. | Failures are contained at the interaction or event boundary. |
+| Interaction lifecycle | Respect Discord's acknowledgement deadline, handle expired/cancelled/invalid flows and duplicate component submissions, and keep `/test` isolated from real events and the delivery ledger (BR-051). | See §5.1.2. |
+
+### 5.1.2 Interaction lifecycle and flow ownership
+
+- **Acknowledgement:** Discord requires a response within three seconds. Commands that start a multi-step flow or perform I/O (`/setup`, `/settings`, `/test`, `/enable`, `/disable`) call `deferReply` immediately; quick validation failures may reply directly. Every interaction is acknowledged or deferred exactly once.
+- **Response visibility:** configuration commands are ephemeral by default (Proposed). `/prayer-times` is public by default (Proposed) so server members can read the times; the final visibility remains Open in the command specification.
+- **Flow ownership (Proposed):** `command-router.ts` owns an in-memory registry keyed by `guildId:userId`. A command handler creates a flow and registers it; component interactions carry a custom-ID prefix that identifies the target flow. Flows are bound to the invoking user **and** guild using interaction context, so another user cannot continue or modify them.
+- **Expiry, cancellation, invalid state:** flows expire after a bounded idle time; cancel, expiry, unknown flow, wrong user/guild, or out-of-order step produce an ephemeral "interaction expired / unavailable" response and no state change. A restart discards all flows; whether drafts should survive restart remains **Open**.
+- **Duplicate component submissions:** a second submission for the same step is acknowledged but ignored, or re-rendered as the current step; it must not apply the same change twice.
+- **`/test`:** reuses text and voice services with a test flag, writes no delivery-ledger entries, and never suppresses or modifies a real scheduled event (BR-051).
 
 ### 5.2 Command-to-module mapping
 
@@ -297,6 +319,20 @@ The scheduler rebuild must:
 - leave in-flight work to the Open policy for configuration changes during a cycle (BR-053).
 
 **Proposed:** the text mention target is read from current settings when the text event is delivered, so a mention-target change applies to future deliveries without altering event times. This is a design recommendation; the product behavior for an already-scheduled reminder remains Open.
+
+### 5.4 Setup location selection
+
+**Proposed UX (confirmed for M7 documentation):** country and city selection use Discord String Select Menus, not free-text input.
+
+1. `/setup` calls `ILocationService.listCountries()` and renders a country menu whose option **value is the canonical country code** and whose label is the country name from Location.
+2. The selected value is validated against the interaction context and passed as `countryCode` to `LocationService.resolve()` or to `listCities(countryCode)`.
+3. `LocationService` applies all business rules: country existence, `cityRequired`, `defaultCity`, city membership, and final resolution.
+4. If a city is required, a city menu is rendered from `listCities(countryCode)`, with the canonical city ID/name as the option value. Otherwise the resolved default city is used.
+5. The resolved location feeds the remaining setup steps; final settings are written once through `SettingsService` after confirmation.
+
+The Discord layer never duplicates country/city reference data and never normalizes typed country names, matches aliases or Arabic names, or performs fuzzy search for this flow. `findCountries()`/`findCities()` exist on the Location service for other read-only uses but are not used by setup. Discord may use Location's returned fields (`cityRequired`, `defaultCity`, resolved location) only to choose the next UI step.
+
+Discord String Select Menus allow at most 25 options. Both country and city menus must be paginated (for example with Previous/Next buttons carrying the page index) when a list exceeds 25 entries. The current curated data has 9 countries and at most 3 cities per country, so pagination is a forward-looking requirement, not a current need.
 
 ## 6. Prayer calculation, scheduling, and event handling
 

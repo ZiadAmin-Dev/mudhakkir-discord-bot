@@ -45,7 +45,7 @@ Status labels follow the [documentation conventions](../README.md#status-labels)
 - **Status:** Location resolution is **implemented** (M3). The Prayer Times deliverables in this section remain planned.
 - **MVP Strategy (Implemented for Location):** Curated reference data only. `src/modules/location/data/countries.json` and `cities.json` hold supported countries (`cityRequired`, nullable `defaultCity`, IANA `timezones`, default calculation method) and their cities (coordinates, IANA timezone, nullable calculation-method override). All city `calculationMethod` values are currently `null`, so the country-level `defaultCalculationMethod` is authoritative; for example, UAE uses `Dubai` and the United States uses `NorthAmerica`. The JSON is reviewed as trusted reference data and is not validated at load time; it is never stored in SQLite. Zod validation in the module applies to resolved output only.
 - **Unsupported locations:** Only countries and cities present in the JSON files can be resolved. Unknown or unsupported selections are rejected with the module's named error; there is no external geocoding fallback for now.
-- **Deferred:** an external geocoding provider (for example Nominatim, Mapbox, or Open-Meteo) remains an open product decision and is not implemented.
+- **Deferred:** an external geocoding provider (for example Nominatim, Mapbox, or Open-Meteo) is not needed for the initial release and is not implemented. Location selection uses curated data and canonical-code select menus.
 
 ### Coordinates & IANA Timezone Authority
 - **Coordinates:** Stored as decimal degrees (Latitude: -90.0 to +90.0, Longitude: -180.0 to +180.0).
@@ -98,7 +98,12 @@ The M4.1 study of scheduling concepts, edge cases, and the proposed minimal desi
 ### Command Handling & Interaction Flows
 - **Slash Commands:** Handled using Discord Slash Command Interactions (`ChatInputCommandInteraction`).
 - **Command Scope:** Registered via REST API to Discord (`Routes.applicationCommands(clientId)` or guild-specific commands for instant updates during development).
-- **Ephemeral Responses:** Setup and configuration commands (`/setup`, `/settings`, `/test`, `/enable`, `/disable`) respond with ephemeral messages (`ephemeral: true`) to preserve privacy and avoid channel clutter.
+- **Component Interactions:** Slash commands and select-menu/button interactions both enter `command-router.ts`. Component custom IDs identify the target flow; the router resolves the active flow by `guildId:userId` from the interaction context.
+- **Acknowledgement:** Discord requires a response within three seconds. `/setup`, `/settings`, `/test`, `/enable`, and `/disable`, and any multi-step interaction, call `deferReply` immediately; immediate validation failures may reply directly. Each interaction is acknowledged once. Failures stay in that interaction's boundary.
+- **Ephemeral Responses:** Setup and configuration commands (`/setup`, `/settings`, `/test`, `/enable`, `/disable`) respond with ephemeral messages (`ephemeral: true`) to preserve privacy and avoid channel clutter. `/prayer-times` is proposed to be public so any member can read the times; visibility remains Open in the command specification.
+- **Select Menu Limits:** A Discord String Select Menu holds at most 25 options. Country and city menus are paginated (Previous/Next buttons carrying the page index) whenever the Location list exceeds 25 entries. Current curated data has 9 countries and at most 3 cities per country, so pagination is a forward-looking rule.
+- **Flow State:** `command-router.ts` owns an in-memory registry of active flows keyed by `guildId:userId`, with expiry, cancellation, invalid-state handling, and wrong-user rejection. A restart discards flows. Duplicate submissions for the same step are ignored or re-rendered; they never apply twice.
+- **Error Presentation:** Known `AppError` instances become short actionable ephemeral messages; unexpected errors are logged with `guildId`, `userId`, `commandName`, and `interactionId` and shown to users only as a generic failure. Stack traces, tokens, and database errors are never exposed.
 - **Authorization Enforcement:**
   - Evaluated on the server side in `command-router.ts` / `authorization.ts`.
   - **Proposed Administrator Rule:** Member must possess `PermissionFlagsBits.Administrator` or `PermissionFlagsBits.ManageGuild` on the server. Command execution is aborted immediately if this check fails (BR-063, BR-064).
