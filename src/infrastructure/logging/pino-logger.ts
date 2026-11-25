@@ -1,11 +1,7 @@
 import pino, { Logger as PinoLogger } from 'pino';
-import { Logger } from '../../shared/logging/logger.js';
+import { Logger } from '../../shared/logging/logger.port.js';
 
-export type { Logger };
-
-type LogLevel = 'fatal' | 'error' | 'warn' | 'info' | 'debug' | 'trace';
-
-export function createLogger(logLevel: LogLevel = 'info', isDevelopment: boolean = false): Logger {
+export function createLogger(logLevel: keyof Logger = 'info', isDevelopment: boolean = false): Logger {
   let logger: PinoLogger;
 
   if (isDevelopment) {

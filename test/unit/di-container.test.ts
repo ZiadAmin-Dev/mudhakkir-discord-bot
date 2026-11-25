@@ -2,7 +2,7 @@ import 'reflect-metadata';
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { container, initContainer, TOKENS } from '../../src/app/composition.js';
-import { ISettingsService, SettingsService } from '../../src/modules/settings/settings.service.js';
+import { ISettingsService, SettingsService } from '../../src/modules/settings/index.js';
 import { AppConfig } from '../../src/app/config.js';
 import { NotFoundError } from '../../src/shared/error/app-error.js';
 

@@ -6,9 +6,11 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createDatabase, runMigrations } from '../../src/infrastructure/persistence/storage.js';
-import { SettingsStore } from '../../src/infrastructure/persistence/settings-store.js';
-import { SettingsService } from '../../src/modules/settings/settings.service.js';
-import { CreateGuildSettingsInput } from '../../src/modules/settings/settings.types.js';
+import {
+  CreateGuildSettingsInput,
+  SettingsService,
+  SettingsStore
+} from '../../src/modules/settings/index.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const migrationsDir = path.resolve(__dirname, '../../src/infrastructure/persistence/migrations');

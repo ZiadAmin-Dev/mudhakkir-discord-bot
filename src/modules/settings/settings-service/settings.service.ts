@@ -1,16 +1,17 @@
 import { injectable, inject } from 'tsyringe';
-import { TOKENS } from '../../shared/di/tokens.js';
+import { TOKENS } from '../../../shared/di/tokens.js';
 import {
   GuildSettings,
   CreateGuildSettingsInput,
   UpdateGuildSettingsInput
-} from './settings.types.js';
-import { ISettingsStore } from './settings-store.port.js';
-import { Logger } from '../../shared/logging/logger.js';
-import { NotFoundError } from '../../shared/error/app-error.js';
+} from '../settings.types.js';
+import { ISettingsStore } from '../settings-store/index.js';
+import { Logger } from '../../../shared/logging/logger.port.js';
+import { settingsNotFoundError } from '../settings.errors.js';
 
 export interface ISettingsService {
   getSettings(guildId: string): GuildSettings | null;
+  listSettings(): GuildSettings[];
   saveSettings(input: CreateGuildSettingsInput): GuildSettings;
   updateSettings(guildId: string, input: UpdateGuildSettingsInput): GuildSettings;
   setEnabled(guildId: string, enabled: boolean): GuildSettings;
@@ -28,6 +29,10 @@ export class SettingsService implements ISettingsService {
     return this.store.get(guildId);
   }
 
+  listSettings(): GuildSettings[] {
+    return this.store.list();
+  }
+
   saveSettings(input: CreateGuildSettingsInput): GuildSettings {
     const settings: GuildSettings = {
       ...input,
@@ -42,7 +47,7 @@ export class SettingsService implements ISettingsService {
   updateSettings(guildId: string, input: UpdateGuildSettingsInput): GuildSettings {
     const existing = this.store.get(guildId);
     if (!existing) {
-      throw new NotFoundError(`No existing configuration found for guild ${guildId}`);
+      throw settingsNotFoundError;
     }
 
     const updated: GuildSettings = {

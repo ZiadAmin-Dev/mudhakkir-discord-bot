@@ -1,7 +1,7 @@
 import Database, { Database as DatabaseType } from 'better-sqlite3';
 import fs from 'node:fs';
 import path from 'node:path';
-import { Logger } from '../logging/logger.js';
+import { Logger } from '../../shared/logging/logger.port.js';
 
 export function createDatabase(dbPath: string, logger?: Logger): DatabaseType {
   const dir = path.dirname(dbPath);

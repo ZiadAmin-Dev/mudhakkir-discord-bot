@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { createDiscordClient } from '../../src/discord/client.js';
-import { createLogger } from '../../src/infrastructure/logging/logger.js';
+import { createLogger } from '../../src/infrastructure/logging/index.js';
 import { GatewayIntentBits } from 'discord.js';
 
 describe('Discord Client Initialization (Milestone 1)', () => {
