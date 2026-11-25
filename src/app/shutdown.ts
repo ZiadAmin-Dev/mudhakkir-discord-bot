@@ -1,7 +1,12 @@
 import { Client } from 'discord.js';
-import { Logger } from '../infrastructure/logging/logger.js';
+import { Logger } from '../shared/logging/logger.port.js';
+import { ISchedulingService } from '../modules/scheduling/index.js';
 
-export function setupGracefulShutdown(client: Client, logger: Logger): void {
+export function setupGracefulShutdown(
+  client: Client,
+  logger: Logger,
+  scheduler?: ISchedulingService
+): void {
   let isShuttingDown = false;
 
   const handleSignal = async (signal: string) => {
@@ -14,6 +19,7 @@ export function setupGracefulShutdown(client: Client, logger: Logger): void {
     logger.info({ signal }, 'Shutdown signal received. Starting graceful teardown...');
 
     try {
+      scheduler?.stop();
       if (client.isReady()) {
         logger.info('Destroying Discord client connection...');
         await client.destroy();
@@ -27,6 +33,7 @@ export function setupGracefulShutdown(client: Client, logger: Logger): void {
     }
   };
 
+  //SIGINT means the process was interrupted (Ctrl+C), and SIGTERM is a termination signal sent by the operating system or other processes.
   process.on('SIGINT', () => {
     void handleSignal('SIGINT');
   });

@@ -9,11 +9,20 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { TOKENS } from '../shared/di/tokens.js';
 import { AppConfig } from './config.js';
-import { createLogger, Logger } from '../infrastructure/logging/logger.js';
+import { createLogger } from '../infrastructure/logging/index.js';
+import { Logger } from '../shared/logging/logger.port.js';
 import { createDatabase, runMigrations } from '../infrastructure/persistence/storage.js';
 import { createDiscordClient } from '../discord/client.js';
-import { SettingsStore } from '../infrastructure/persistence/settings-store.js';
-import { SettingsService } from '../modules/settings/settings.service.js';
+import { SettingsService, SettingsStore } from '../modules/settings/index.js';
+import { LocationService } from '../modules/location/index.js';
+import { PrayerTimesService } from '../modules/prayer-times/index.js';
+import { SystemClock, Clock } from '../shared/clock.js';
+import {
+  DeliveryLedger,
+  DeliveryLedgerStore,
+  DueEventCallback,
+  SchedulingService
+} from '../modules/scheduling/index.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -47,9 +56,28 @@ export function initContainer(
   const client = createDiscordClient(logger);
   di.registerInstance(TOKENS.DiscordClient, client);
 
-  // 5. Stores & Services (Singletons)
+  // 5. Clock
+  di.registerInstance<Clock>(TOKENS.Clock, new SystemClock());
+
+  // 6. Stores & Services (Singletons)
   di.registerSingleton(TOKENS.SettingsStore, SettingsStore);
   di.registerSingleton(TOKENS.SettingsService, SettingsService);
+  di.registerSingleton(TOKENS.DeliveryLedgerStore, DeliveryLedgerStore);
+  di.registerSingleton(TOKENS.DeliveryLedger, DeliveryLedger);
+
+  // 7. Location & Prayer Times
+  di.registerSingleton(TOKENS.LocationService, LocationService);
+  di.registerSingleton(TOKENS.PrayerTimesService, PrayerTimesService);
+
+  // 8. Scheduling. The callback is replaced by the reminder handler in M5.
+  const dueEventCallback: DueEventCallback = (event) => {
+    logger.debug(
+      { eventKey: event.eventKey, prayer: event.prayer, eventType: event.eventType },
+      'Due prayer event dispatched (no reminder handler registered)'
+    );
+  };
+  di.registerInstance<DueEventCallback>(TOKENS.DueEventCallback, dueEventCallback);
+  di.registerSingleton(TOKENS.SchedulerService, SchedulingService);
 
   return di;
 }

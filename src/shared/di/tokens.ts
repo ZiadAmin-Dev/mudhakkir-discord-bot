@@ -4,16 +4,23 @@ export const TOKENS = {
   Logger: Symbol.for('Logger'),
   Database: Symbol.for('Database'),
   DiscordClient: Symbol.for('DiscordClient'),
+  Clock: Symbol.for('Clock'),
 
   // Persistence Stores
   SettingsStore: Symbol.for('SettingsStore'),
   DeliveryLedgerStore: Symbol.for('DeliveryLedgerStore'),
 
+  // Location & Geocoding
+  LocationService: Symbol.for('LocationService'),
+  Geocoder: Symbol.for('Geocoder'),
+  TimezoneResolver: Symbol.for('TimezoneResolver'),
+
   // Services
   SettingsService: Symbol.for('SettingsService'),
-  LocationService: Symbol.for('LocationService'),
   PrayerTimesService: Symbol.for('PrayerTimesService'),
+  DeliveryLedger: Symbol.for('DeliveryLedger'),
   SchedulerService: Symbol.for('SchedulerService'),
+  DueEventCallback: Symbol.for('DueEventCallback'),
   TextAnnouncementService: Symbol.for('TextAnnouncementService'),
   VoiceAnnouncementService: Symbol.for('VoiceAnnouncementService'),
   VoiceCoordinator: Symbol.for('VoiceCoordinator')

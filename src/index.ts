@@ -2,9 +2,10 @@ import 'dotenv/config';
 import 'reflect-metadata';
 import { loadConfig } from './app/config.js';
 import { initContainer, TOKENS } from './app/composition.js';
-import { Logger } from './infrastructure/logging/logger.js';
+import { Logger } from './shared/logging/logger.port.js';
 import { Client } from 'discord.js';
 import { bootstrap } from './app/bootstrap.js';
+import { ISchedulingService } from './modules/scheduling/index.js';
 
 async function main(): Promise<void> {
   let config;
@@ -18,11 +19,12 @@ async function main(): Promise<void> {
   const di = initContainer(config);
   const logger = di.resolve<Logger>(TOKENS.Logger);
   const client = di.resolve<Client>(TOKENS.DiscordClient);
+  const scheduler = di.resolve<ISchedulingService>(TOKENS.SchedulerService);
 
   logger.info({ nodeEnv: config.NODE_ENV, logLevel: config.LOG_LEVEL }, 'Initializing Mudhakkir with DI container...');
 
   try {
-    await bootstrap(config, logger, client);
+    await bootstrap(config, logger, client, scheduler);
   } catch (error) {
     logger.fatal({ err: error }, 'Fatal error during bot startup');
     process.exit(1);
