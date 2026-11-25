@@ -1,0 +1,19 @@
+[
+  { "id": "cairo", "countryCode": "EG", "name": "Cairo", "latitude": 30.0444, "longitude": 31.2357, "timezone": "Africa/Cairo", "calculationMethod": null },
+  { "id": "alexandria", "countryCode": "EG", "name": "Alexandria", "latitude": 31.2001, "longitude": 29.9187, "timezone": "Africa/Cairo", "calculationMethod": null },
+  { "id": "riyadh", "countryCode": "SA", "name": "Riyadh", "latitude": 24.7136, "longitude": 46.6753, "timezone": "Asia/Riyadh", "calculationMethod": null },
+  { "id": "jeddah", "countryCode": "SA", "name": "Jeddah", "latitude": 21.4858, "longitude": 39.1925, "timezone": "Asia/Riyadh", "calculationMethod": null },
+  { "id": "mecca", "countryCode": "SA", "name": "Mecca", "latitude": 21.3891, "longitude": 39.8579, "timezone": "Asia/Riyadh", "calculationMethod": null },
+  { "id": "abu-dhabi", "countryCode": "AE", "name": "Abu Dhabi", "latitude": 24.4539, "longitude": 54.3773, "timezone": "Asia/Dubai", "calculationMethod": null },
+  { "id": "dubai", "countryCode": "AE", "name": "Dubai", "latitude": 25.2048, "longitude": 55.2708, "timezone": "Asia/Dubai", "calculationMethod": null },
+  { "id": "new-york", "countryCode": "US", "name": "New York", "latitude": 40.7128, "longitude": -74.006, "timezone": "America/New_York", "calculationMethod": null },
+  { "id": "chicago", "countryCode": "US", "name": "Chicago", "latitude": 41.8781, "longitude": -87.6298, "timezone": "America/Chicago", "calculationMethod": null },
+  { "id": "los-angeles", "countryCode": "US", "name": "Los Angeles", "latitude": 34.0522, "longitude": -118.2437, "timezone": "America/Los_Angeles", "calculationMethod": null },
+  { "id": "london", "countryCode": "GB", "name": "London", "latitude": 51.5074, "longitude": -0.1278, "timezone": "Europe/London", "calculationMethod": null },
+  { "id": "manchester", "countryCode": "GB", "name": "Manchester", "latitude": 53.4808, "longitude": -2.2426, "timezone": "Europe/London", "calculationMethod": null },
+  { "id": "casablanca", "countryCode": "MA", "name": "Casablanca", "latitude": 33.5731, "longitude": -7.5898, "timezone": "Africa/Casablanca", "calculationMethod": null },
+  { "id": "karachi", "countryCode": "PK", "name": "Karachi", "latitude": 24.8607, "longitude": 67.0011, "timezone": "Asia/Karachi", "calculationMethod": null },
+  { "id": "lahore", "countryCode": "PK", "name": "Lahore", "latitude": 31.5204, "longitude": 74.3587, "timezone": "Asia/Karachi", "calculationMethod": null },
+  { "id": "istanbul", "countryCode": "TR", "name": "Istanbul", "latitude": 41.0082, "longitude": 28.9784, "timezone": "Europe/Istanbul", "calculationMethod": null },
+  { "id": "jakarta", "countryCode": "ID", "name": "Jakarta", "latitude": -6.2088, "longitude": 106.8456, "timezone": "Asia/Jakarta", "calculationMethod": null }
+]
