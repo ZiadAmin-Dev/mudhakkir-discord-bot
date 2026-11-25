@@ -23,7 +23,7 @@ Related documents:
 | Constructor-based Dependency Injection | Confirmed | Inversion of Control using `tsyringe`. Components receive dependencies via constructor injection using centralized DI tokens (`TOKENS`). |
 | Centralized Composition Root | Confirmed | All dependencies (instances and singletons) are registered in a single composition root (`src/app/composition.ts`). |
 | Standardized Operational Error Handling | Confirmed | Errors extend `AppError` with operational classifications (`isOperational: boolean`), isolating expected domain errors from unexpected system faults. |
-| Separation of Shared vs Infrastructure | Confirmed | `shared/` contains technology-independent cross-cutting primitives (DI tokens, `AppError`, and the `Logger` contract today; a clock contract is planned); `infrastructure/` contains concrete technology adapters (SQLite, Pino logger; audio player planned). |
+| Separation of Shared vs Infrastructure | Confirmed | `shared/` contains technology-independent cross-cutting primitives (DI tokens, `AppError`, the `Logger` contract, and the `Clock` contract); `infrastructure/` contains concrete technology adapters (SQLite, Pino logger, and local audio playback). |
 | Local prayer-time calculation | Confirmed | Calculation is an in-process function, not a remote service call. |
 | Local audio assets | Confirmed | Playback reads project assets; no remote audio fetching is required. |
 | Persistent server configuration | Confirmed | Settings survive restart; persisted in SQLite (`better-sqlite3`). |
@@ -47,10 +47,10 @@ The current source tree is a foundation, not the complete design below:
 | Discord | **Implemented for connection and text delivery.** The `discord.js` client uses the Guilds and GuildVoiceStates intents; the message-sender adapter resolves channels, checks permissions, and applies exact `allowedMentions`. Commands, registration, and authorization are not implemented. |
 | Prayer calculation | **Implemented.** The module uses `adhan` with all supported methods, Standard Asr, and IANA timezone formatting; unit and integration tests verify the flow from Location resolution. |
 | Scheduling | **Implemented.** One-timer scheduler with heartbeat, event builder, delivery ledger with commit-before-dispatch, restart recovery, and a fake-clock test suite. Its callback is the reminder handler. |
-| Announcements | **Text implemented; voice planned.** Due prayer events deliver text with exact mention control; sections 7.3–7.5 (voice, flow, `/test`) remain target design for M6/M7. |
+| Announcements | **Text and voice implemented.** Due events deliver text with exact mentions; approaching events run a sequential voice cycle with a per-guild lock. Live Discord playback and `/test` remain unverified/planned. |
 | Shutdown | **Partially implemented.** The scheduler is stopped first, then the Discord client is destroyed on `SIGINT`/`SIGTERM`; voice and database teardown arrive with their components. |
 
-`npx tsc --noEmit` passes and the current test suite reports 64 passing tests. The [implementation roadmap](../development/implementation-roadmap.md) tracks milestone status and known gaps.
+`npx tsc --noEmit` passes and the current test suite reports 71 passing tests. The [implementation roadmap](../development/implementation-roadmap.md) tracks milestone status and known gaps.
 
 ## 2. Layered Architecture & Module Map
 
@@ -58,7 +58,7 @@ The architecture adopts a practical Clean Architecture-inspired separation of co
 
 1. **Presentation Layer (`src/discord/`):** Discord bot gateway interaction, slash command parsing, **input validation and normalization**, user authorization, and interaction replies. It acts as the controller boundary: services receive canonical data, not raw Discord input. Decoupled from core business rules and storage.
 2. **Application & Domain Layer (`src/modules/`):** Core business logic, domain models, validation, scheduling, and reminder orchestration. Encapsulated in cohesive modules exposing public entry points.
-3. **Infrastructure Layer (`src/infrastructure/`):** Concrete technical implementations and adapters for external systems (SQLite persistence and Pino logging today; Discord voice connection and audio playback are planned).
+3. **Infrastructure Layer (`src/infrastructure/`):** Concrete technical implementations and adapters for external systems (SQLite persistence, Pino logging, Discord voice connection, and local audio playback).
 4. **Shared Layer (`src/shared/`):** Pure, technology-independent cross-cutting primitives shared across layers (DI tokens, `AppError` hierarchy, `Logger` contract, clock interfaces).
 5. **Composition Root (`src/app/`):** Process configuration, lifecycle (bootstrap and graceful shutdown), and dependency injection container initialization.
 
@@ -250,7 +250,7 @@ sequenceDiagram
 5. Flush and close persistence.
 6. Flush logs and exit.
 
-Shutdown must be idempotent. A crash cannot be graceful, so recovery relies on persisted settings, the proposed delivery ledger, and rebuilding the schedule on the next start. Until the scheduler and voice components exist, the implemented shutdown is intentionally limited to the Discord client.
+Shutdown must be idempotent. A crash cannot be graceful, so recovery relies on persisted settings, the delivery ledger, and rebuilding the schedule on the next start. Current shutdown stops the scheduler before destroying the Discord client; draining in-flight voice cycles is not implemented yet.
 
 ### 4.3 Reconnection
 
@@ -300,7 +300,7 @@ The scheduler rebuild must:
 
 ## 6. Prayer calculation, scheduling, and event handling
 
-**Implementation status: M3 and M4 implemented.** Section 6.1 is the implemented prayer-times module; Sections 6.2–6.4 are implemented by the scheduling module as described in [`technical/scheduling-design.md`](../technical/scheduling-design.md). Section 7.2 (text) is implemented in M5; the voice sections remain target design for M6/M7.
+**Implementation status: M3 and M4 implemented.** Section 6.1 is the implemented prayer-times module; Sections 6.2–6.4 are implemented by the scheduling module as described in [`technical/scheduling-design.md`](../technical/scheduling-design.md). Section 7.2 (text) is implemented in M5 and Sections 7.3–7.4 (voice) in M6; `/test` (7.5) remains target design for M7.
 
 ### 6.1 Prayer calculation
 
@@ -342,11 +342,11 @@ The scheduler owns all timers for future prayer events. There are no ad hoc recu
 
 The reminder handler loads the current settings snapshot and starts the appropriate path. If the snapshot is missing, invalid, or disabled, it logs the condition and sends nothing. It must not serialize text behind a long-running voice cycle. Failures in one path are caught, logged, and do not cancel the other.
 
-**Proposed:** the scheduler does not await a full voice cycle before arming or dispatching other events. The handler owns the background task and the process shutdown path tracks it. The exact tracking and drain behavior are Open.
+**Implemented:** the handler dispatches text and voice without awaiting either path; the scheduler arms the next event independently. Tracking and draining in-flight work during shutdown remain Open.
 
 ## 7. Announcement paths
 
-**Implementation status: text path implemented (M5), voice path not started.** Section 7.2 is implemented by `TextAnnouncementService`, `buildTextAnnouncement`, and `DiscordMessageSender`; the reminder handler loads a fresh settings snapshot and contains failures. Sections 7.3–7.5 are the target design for M6/M7.
+**Implementation status: text and voice paths implemented.** Section 7.2 is implemented by `TextAnnouncementService`, `buildTextAnnouncement`, and `DiscordMessageSender`; Sections 7.3–7.4 by `VoiceAnnouncementService`, `runVoiceCycle`, `VoiceCoordinator`, `DiscordVoiceDirectory`, and `DiscordVoiceTransport`. Live voice playback and Section 7.5 (`/test`) remain pending.
 
 ### 7.1 Independence invariant
 
@@ -378,9 +378,9 @@ The text service does not read the delivery ledger and does not own scheduling.
 6. A channel failure is logged and the loop continues.
 7. The lock is released only after the connection is closed or confirmed inactive.
 
-**Proposed:** a single per-guild voice coordinator owns the lock and is also used by `/test`. If a cycle is requested while another is active, the resolution is **Open** (wait, reject, or skip). The lock exists regardless of that policy to enforce BR-020 and BR-021.
+**Implemented (Proposed policy):** a single per-guild `VoiceCoordinator` owns the lock; a cycle requested while another is active is **skipped**, not queued. `/test` will share this lock in M7. This enforces BR-020/BR-021.
 
-The privacy classification rule is **Open**. The voice module must receive a policy decision; it must not infer privacy from channel names.
+**Implemented (Proposed rule):** a channel is private when `@everyone` cannot view it — a permission fact, never a name guess. The policy is applied from `includePrivateVoice` in settings.
 
 ### 7.4 Announcement flow
 
@@ -487,14 +487,14 @@ No tokens, secrets, or sensitive message contents are logged. No error is silent
 The architecture is consistent with the documented constraints, but these points need resolution before or during implementation:
 
 1. **Exactly-once vs at-most-once — resolved.** Discord sends are not idempotent. Ledger commit-before-dispatch is now **Confirmed** (M4.1): it prioritizes no duplicates and may lose an announcement on a crash. An occurrence can therefore be recorded as handled even when the handler sends nothing because the configuration is invalid or disabled at that moment; this is logged with context. The full rationale is in [`technical/scheduling-design.md`](../technical/scheduling-design.md#8-restart-recovery-and-duplicate-execution-risks).
-2. **Scheduler and long voice cycles.** If a voice cycle is still running at prayer time, the text path must not wait. The scheduler must not serialize independent events behind a long delivery. Task tracking and shutdown behavior need a concrete design.
-3. **Overlapping voice cycles.** The per-guild lock enforces one connection, but the behavior when a second cycle is requested is Open. This affects `/test` and closely spaced prayers.
+2. **Scheduler and long voice cycles — resolved for dispatch.** The handler starts text and voice without awaiting either; the scheduler arms the next event immediately. Shutdown tracking of in-flight work remains Open.
+3. **Overlapping voice cycles — implemented as Proposed.** The per-guild coordinator skips a second cycle; `/test` will share the lock in M7.
 4. **Configuration changes during delivery.** BR-053 leaves in-flight voice behavior Open. The architecture must define whether a running cycle finishes, stops, or ignores the change.
-5. **Privacy classification.** Channel eligibility cannot be finalized until the privacy rule is defined. The architecture deliberately leaves this as a policy input.
+5. **Privacy classification — implemented as Proposed.** A channel is private when `@everyone` cannot view it; eligibility uses `includePrivateVoice`. No channel-name inference is performed.
 6. **No eligible voice channels.** Whether the cycle is a silent no-op or produces a log/admin response is Open.
 7. **Missing audio.** BR-086 leaves fallback behavior Open. The audio layer can contain the failure, but the product response is unsettled.
-8. **Delivery ledger implementation.** SQLite is chosen and the `delivery_ledger` table exists, but the store, commit ordering, failure handling, and pruning strategy are not implemented.
-9. **Late events.** BR-052 leaves late-while-running behavior Open. The scheduler needs a single policy point so the choice is not scattered.
+8. **Delivery ledger implementation — resolved.** The module-owned store, commit-before-dispatch, fail-closed behavior, and 7-day pruning are implemented and tested.
+9. **Late events — implemented as Proposed.** Events more than 60 seconds late are skipped and logged; formal product approval is still pending.
 10. **Setup state.** In-memory drafts are reasonable for one process, but whether an unfinished setup must survive restart is Open.
 11. **Test behavior.** Real mentions, target channels, and voice-lock sharing for `/test` are Open and affect both safety and architecture.
 12. **Authorization and command registration.** The exact administrator permission and whether commands are registered globally or per server are Open.
@@ -507,10 +507,10 @@ The following should be investigated and recorded, likely as ADRs or technical d
 - Delivery-ledger commit ordering (**decided**: commit-before-dispatch), failure handling, and retention.
 - Scheduler mechanism (single timer, polling, or another in-process approach) and the policy for late events — proposals are recorded in [`technical/scheduling-design.md`](../technical/scheduling-design.md#10-edge-cases-and-trade-offs).
 - Concrete duplicate-prevention semantics and failure trade-offs.
-- Voice connection library and audio playback stack; `discord.js` v14 is already used for the gateway client.
-- External geocoding provider (deferred; current Location module is curated-data-only) and the privacy-classification rule.
-- Stage channel, AFK channel, and no-eligible-channel behavior.
-- Handling of overlapping voice cycles and `/test` interaction with real cycles.
+- Voice connection library and audio playback stack — **implemented**: `@discordjs/voice`, `opusscript`, and local PCM assets; live playback still unverified.
+- External geocoding provider (deferred; Location is curated-data-only) and the privacy-classification rule — **implemented as Proposed**: private means `@everyone` cannot view.
+- Stage channel, AFK channel, and no-eligible-channel behavior; the current adapter considers only `GuildVoice` channels.
+- Overlapping voice cycles — **implemented as Proposed**: skip the second cycle; `/test` lock sharing arrives in M7.
 - In-flight behavior for configuration changes, disabling, and shutdown.
 - Setup-draft persistence and the exact command registration and authorization model.
 - Logging destination, retention, and alerting expectations.

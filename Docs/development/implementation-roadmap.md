@@ -17,14 +17,14 @@ The repository contains a working M1/M2 foundation and an implemented M3 (Locati
 | **M3** | **Implemented and verified** | Location and Prayer Times modules exist, using `adhan` with all supported methods and Standard Asr. Unit and integration tests cover the full flow, DST, high latitudes, and external references. |
 | **M4** | **Implemented and verified** | The M4.1 study is in [`technical/scheduling-design.md`](../technical/scheduling-design.md); M4.2 implemented the clock port, event builder, single-timer scheduler with heartbeat, module-owned delivery-ledger adapter, commit-before-dispatch, restart recovery, and 7-day pruning. |
 | **M5** | **Text path implemented; M6/M7 items pending** | Reminder handler, text builder/service, and Discord sender deliver `PRAYER_TIME_REACHED` events with exact `@everyone`/role mentions. Voice path and `/test` command behavior remain planned. |
-| **M6** | **Not started** | No voice library, audio assets, or voice coordinator. |
+| **M6** | **Implemented and verified (offline tests)** | `@discordjs/voice` transport, channel directory, eligibility rules, per-guild lock, sequential cycle, and local PCM assets. Live voice playback has not been verified on Discord. |
 | **M7** | **Not started** | No command router, authorization, or slash commands. |
 | **M8** | **Not started** | No deployment descriptors, end-to-end suite, or completed crash boundaries. |
 
 ### Verified now
 
 - `npx tsc --noEmit` passes.
-- `npm test` reports 64 passing tests across 13 files: configuration, DI/composition, Discord client intents and message sender, persistence/settings, location, prayer times, scheduling, text announcements, reminder handler, and the Location → Prayer Times, Scheduling → Persistence, and Scheduler → Text Delivery integration suites.
+- `npm test` reports 71 passing tests across 15 files: configuration, DI/composition, Discord client intents and message sender, persistence/settings, location, prayer times, scheduling, text announcements, reminder handler, voice announcements, audio assets, and the Location → Prayer Times, Scheduling → Persistence, and Scheduler → Text Delivery integration suites.
 - Migrations create `guild_settings`, `delivery_ledger`, and `schema_migrations`.
 - Settings can be saved, retrieved, partially updated, toggled, deleted, and reject invalid input.
 - Location resolves only countries/cities present in curated JSON, applies default-city and country-level calculation-method rules, and rejects unsupported selections. No external geocoding is used.
@@ -35,13 +35,16 @@ The repository contains a working M1/M2 foundation and an implemented M3 (Locati
 - The delivery ledger is owned by the scheduling module (`src/modules/scheduling/delivery-ledger-store/delivery-ledger-store.ts`), commits keys **before** dispatch, and prunes rows older than 7 days. Tests verify no replay after a database close/reopen and deduplication across restarts.
 - The reminder handler is the scheduler's due-event callback. It loads a fresh settings snapshot per event, skips missing/disabled guilds, and delivers only `PRAYER_TIME_REACHED` events through the text path; `PRAYER_APPROACHING` awaits M6.
 - Text announcements apply exactly one mention mode (`@everyone` or one role) via `allowedMentions`, and delivery failures are logged and contained. Integration tests verify one message per due event and none for disabled guilds.
+- Voice announcements use a per-guild lock (overlapping cycles are skipped), recheck eligibility immediately before each join, and isolate per-channel failures so the loop continues. Text delivery remains independent; the reminder handler routes approaching events to voice and reached events to text.
+- Local audio assets are generated 48kHz stereo PCM placeholders (`assets/audio/*.pcm`) played with `StreamType.Raw`, so no ffmpeg is required. Replace them with real recitations without changing filenames.
 - Feature persistence adapters are owned by their modules (`src/modules/settings/settings-store/settings-store.ts` today), with each concern in its own folder per the [folder convention](../architecture/code-structure.md#folder-convention-applies-to-every-module); `infrastructure/persistence/` keeps only the shared connection and migrations. All modules use the same SQLite database.
 - `tsc` does not copy SQL migrations into `dist`; the `build` script runs `copy-migrations.mjs` after `tsc`, which copies migrations to `dist/infrastructure/persistence/migrations` and exits non-zero if the migrations directory is missing.
 - `unhandledRejection` is logged but does not terminate the process.
 
 ### Known gaps
 
-- No voice path exists: `PRAYER_APPROACHING` events are intentionally ignored until M6.
+- Live Discord voice connection/playback has not been verified; tests use fakes and real local audio assets.
+- Audio assets are placeholder tones, not real prayer recitations.
 - No command layer or `/test` behavior exists; settings can only be seeded directly in tests until M7.
 - `unhandledRejection` is logged but does not terminate the process.
 - Live Discord login and graceful shutdown against the real gateway have not been recorded as verified.
@@ -228,14 +231,18 @@ Implement the text reminder path that formats announcement messages and delivers
 ### Goal & Expected Outcome
 Implement sequential voice channel announcements: discover voice channels in the guild, evaluate eligibility rules (human presence, bot permissions, private channel policy), and execute the sequential join-play-disconnect cycle using `@discordjs/voice` and local audio assets.
 
+### Status: implemented (offline-verified); live voice and real audio assets pending
+
 ### Main Modules & Files Involved
-- `assets/audio/` — Pre-transcoded 48kHz stereo OGG/Opus audio files for each prayer (`fajr.ogg`, `dhuhr.ogg`, etc.)
-- `src/infrastructure/audio/audio-library.ts` — Validates local audio files exist and are readable on startup
-- `src/infrastructure/audio/audio-player.ts` — Plays audio resources via `@discordjs/voice`
-- `src/discord/discord-channels.ts` — Channel directory adapter inspecting voice channels and member presence
-- `src/modules/reminders/voice/channel-eligibility.ts` — Pure business rules checking channel type, permissions, humans, and privacy
-- `src/modules/reminders/voice/voice-cycle.ts` — Per-guild voice mutex lock and sequential channel iterator
-- `src/modules/reminders/voice/voice-announcement.service.ts` — Voice reminder cycle entry point
+- `assets/audio/*.pcm` — Generated placeholder 48kHz stereo s16le announcements (`fajr.pcm`, ...); `scripts/generate-audio-assets.mjs` regenerates them.
+- `src/infrastructure/audio/audio-library.ts` — Local asset lookup and startup validation (warning only).
+- `src/infrastructure/audio/audio-player.ts` — `createAudioResource(..., { inputType: StreamType.Raw })`; no ffmpeg required.
+- `src/discord/discord-channels.ts` — Channel directory adapter returning plain snapshots with permissions, human count, and privacy flag.
+- `src/discord/voice-transport.ts` — `@discordjs/voice` join, 5s readiness timeout, playback to `Idle` (45s safety timeout), and `destroy()` in `finally`.
+- `src/modules/reminders/voice/channel-eligibility.ts` — Pure rules: type, permissions, human presence, and permission-based privacy.
+- `src/modules/reminders/voice/voice-cycle.ts` — Sequential iteration with immediate pre-join recheck and per-channel failure isolation.
+- `src/modules/reminders/voice/voice-coordinator.ts` — Per-guild mutex; overlapping cycles are skipped (Proposed).
+- `src/modules/reminders/voice/voice-announcement.service.ts` — Voice entry point used by the reminder handler.
 
 ### Dependencies
 - **Milestone 1** (Discord client and voice gateway).
@@ -243,11 +250,12 @@ Implement sequential voice channel announcements: discover voice channels in the
 - **Milestone 4** (Scheduler approaching event).
 
 ### Essential Tests & Acceptance Criteria
-- [ ] Channels with zero members or only bot members are skipped (BR-012).
-- [ ] Eligibility is re-checked immediately before connecting to each channel (BR-016).
-- [ ] Bot connects to at most one voice channel at a time, plays audio to completion, and disconnects before joining the next channel (BR-020, BR-022).
-- [ ] A failure in one channel (e.g., join timeout, playback error) is logged and does not prevent the bot from continuing to the next eligible channel (BR-024).
-- [ ] Invariant check: Voice failures or lengthy voice cycles never delay or suppress the text announcement at prayer time (BR-030, BR-032).
+- [x] Channels with zero human members are skipped (BR-012).
+- [x] Eligibility is re-checked immediately before connecting to each channel (BR-016).
+- [x] The per-guild coordinator allows one active cycle; the transport disconnects in `finally` after playback (BR-020, BR-022).
+- [x] A failure in one channel is logged and does not prevent the next eligible channel (BR-024).
+- [x] Voice and text dispatch are independent; approaching events go to voice, reached events to text, and neither awaits the other (BR-030, BR-032).
+- [ ] Live Discord voice connection and audible playback verification remain for M8 end-to-end testing.
 
 ---
 

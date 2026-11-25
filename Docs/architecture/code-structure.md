@@ -12,6 +12,19 @@ Related documents:
 ## 1. Source tree and implementation status
 
 ```text
+assets/
+└── audio/
+    ├── fajr.pcm          # generated 48kHz stereo s16le placeholders
+    ├── dhuhr.pcm
+    ├── asr.pcm
+    ├── maghrib.pcm
+    └── isha.pcm
+
+scripts/
+├── copy-migrations.mjs
+├── clean-adhan-tsconfig.mjs
+└── generate-audio-assets.mjs
+
 src/
 ├── index.ts
 ├── app/
@@ -35,7 +48,8 @@ src/
 │   │   └── settings-flow.ts
 │   ├── discord-channels.ts
 │   ├── discord-messages.ts
-│   └── discord-voice.ts
+│   ├── discord.errors.ts
+│   └── voice-transport.ts
 ├── modules/
 │   ├── settings/
 │   │   ├── index.ts
@@ -92,9 +106,12 @@ src/
 │       │   ├── text-message.builder.ts
 │       │   └── text-announcement.service.ts
 │       └── voice/
-│           ├── voice-announcement.service.ts
+│           ├── index.ts
+│           ├── voice-channels.port.ts
 │           ├── channel-eligibility.ts
-│           └── voice-cycle.ts
+│           ├── voice-cycle.ts
+│           ├── voice-coordinator.ts
+│           └── voice-announcement.service.ts
 ├── infrastructure/
 │   ├── persistence/
 │   │   ├── storage.ts
@@ -103,12 +120,11 @@ src/
 │   ├── audio/
 │   │   ├── audio-library.ts
 │   │   └── audio-player.ts
-│   ├── logging/
-│   │   ├── index.ts
-│   │   └── pino-logger.ts
-│   └── clock/
-│       └── system-clock.ts
+│   └── logging/
+│       ├── index.ts
+│       └── pino-logger.ts
 └── shared/
+    ├── clock.ts
     ├── di/
     │   └── tokens.ts
     ├── error/
@@ -141,7 +157,7 @@ Folder layout follows the convention in [§3](#3-module-public-entry-points): im
 | Area | Implemented paths |
 | --- | --- |
 | Entry and lifecycle | `src/index.ts`, `src/app/config.ts`, `src/app/composition.ts`, `src/app/bootstrap.ts`, `src/app/shutdown.ts` |
-| Discord | `src/discord/client.ts`, `src/discord/discord-messages.ts`, `src/discord/discord.errors.ts` |
+| Discord | `src/discord/client.ts`, `src/discord/discord-messages.ts`, `src/discord/discord.errors.ts`, `src/discord/discord-channels.ts`, `src/discord/voice-transport.ts` |
 | Settings | `src/modules/settings/index.ts`, `src/modules/settings/settings.types.ts`, `src/modules/settings/settings.validation.ts`, `src/modules/settings/settings.errors.ts`, `src/modules/settings/settings-store/index.ts`, `src/modules/settings/settings-store/settings-store.port.ts`, `src/modules/settings/settings-store/settings-store.ts`, `src/modules/settings/settings-service/index.ts`, `src/modules/settings/settings-service/settings.service.ts` |
 | Location | `src/modules/location/index.ts`, `src/modules/location/location.types.ts`, `src/modules/location/location.validation.ts`, `src/modules/location/location.errors.ts`, `src/modules/location/location-service/index.ts`, `src/modules/location/location-service/location.service.ts`, `src/modules/location/data/countries.json`, `src/modules/location/data/cities.json` |
 | Prayer Times | `src/modules/prayer-times/index.ts`, `src/modules/prayer-times/prayer-time.types.ts`, `src/modules/prayer-times/prayer-times.errors.ts`, `src/modules/prayer-times/prayer-calculation.ts`, `src/modules/prayer-times/prayer-times-service/index.ts`, `src/modules/prayer-times/prayer-times-service/prayer-times.service.ts` |
@@ -149,15 +165,16 @@ Folder layout follows the convention in [§3](#3-module-public-entry-points): im
 | Logging | `src/infrastructure/logging/index.ts`, `src/infrastructure/logging/pino-logger.ts` |
 | Shared | `src/shared/di/tokens.ts`, `src/shared/error/app-error.ts`, `src/shared/logging/logger.port.ts`, `src/shared/clock.ts` |
 | Scheduling | `src/modules/scheduling/index.ts`, `src/modules/scheduling/event.types.ts`, `src/modules/scheduling/event-builder.ts`, `src/modules/scheduling/delivery-ledger.ts`, `src/modules/scheduling/delivery-ledger-store/index.ts`, `src/modules/scheduling/delivery-ledger-store/delivery-ledger-store.port.ts`, `src/modules/scheduling/delivery-ledger-store/delivery-ledger-store.ts`, `src/modules/scheduling/scheduling-service/index.ts`, `src/modules/scheduling/scheduling-service/scheduling.service.ts` |
-| Reminders (text path) | `src/modules/reminders/index.ts`, `src/modules/reminders/reminders.errors.ts`, `src/modules/reminders/reminder-handler/index.ts`, `src/modules/reminders/reminder-handler/reminder-handler.ts`, `src/modules/reminders/text/index.ts`, `src/modules/reminders/text/text-message-sender.port.ts`, `src/modules/reminders/text/text-message.builder.ts`, `src/modules/reminders/text/text-announcement.service.ts` |
-| Tests | `test/unit/config.test.ts`, `test/unit/di-container.test.ts`, `test/unit/discord-client.test.ts`, `test/unit/discord/discord-messages.test.ts`, `test/unit/location/location.test.ts`, `test/unit/prayer-times/prayer-times.test.ts`, `test/unit/scheduling/scheduling.test.ts`, `test/unit/reminders/text-announcement.test.ts`, `test/unit/reminders/reminder-handler.test.ts`, `test/integration/persistence.test.ts`, `test/integration/location-prayer-times.test.ts`, `test/integration/scheduling-persistence.test.ts`, `test/integration/scheduled-text-delivery.test.ts` |
+| Reminders | `src/modules/reminders/index.ts`, `src/modules/reminders/reminders.errors.ts`, `src/modules/reminders/reminder-handler/index.ts`, `src/modules/reminders/reminder-handler/reminder-handler.ts`, `src/modules/reminders/text/index.ts`, `src/modules/reminders/text/text-message-sender.port.ts`, `src/modules/reminders/text/text-message.builder.ts`, `src/modules/reminders/text/text-announcement.service.ts`, `src/modules/reminders/voice/index.ts`, `src/modules/reminders/voice/voice-channels.port.ts`, `src/modules/reminders/voice/channel-eligibility.ts`, `src/modules/reminders/voice/voice-cycle.ts`, `src/modules/reminders/voice/voice-coordinator.ts`, `src/modules/reminders/voice/voice-announcement.service.ts` |
+| Audio | `assets/audio/*.pcm`, `src/infrastructure/audio/audio-library.ts`, `src/infrastructure/audio/audio-player.ts`, `src/infrastructure/audio/index.ts`, `scripts/generate-audio-assets.mjs` |
+| Tests | `test/unit/config.test.ts`, `test/unit/di-container.test.ts`, `test/unit/discord-client.test.ts`, `test/unit/discord/discord-messages.test.ts`, `test/unit/location/location.test.ts`, `test/unit/prayer-times/prayer-times.test.ts`, `test/unit/scheduling/scheduling.test.ts`, `test/unit/reminders/text-announcement.test.ts`, `test/unit/reminders/reminder-handler.test.ts`, `test/unit/reminders/voice.test.ts`, `test/unit/audio/audio-library.test.ts`, `test/integration/persistence.test.ts`, `test/integration/location-prayer-times.test.ts`, `test/integration/scheduling-persistence.test.ts`, `test/integration/scheduled-text-delivery.test.ts` |
 
-Everything else in the tree is planned. In particular, the command layer, voice stack, and audio stack do not exist yet. The Location module is implemented with its reference data as files, not database tables or migrations. The scheduler's due-event callback is the reminder handler; only the text path is implemented so far.
+Everything else in the tree is planned. In particular, the command layer and authorization do not exist yet. The Location module is implemented with its reference data as files, not database tables or migrations. The scheduler's due-event callback is the reminder handler, which routes text and voice independently.
 
 ### Layer Separation: `shared` vs `infrastructure`
 
-- **`shared/` (Technology-independent cross-cutting primitives):** Contains shared types, error definitions, DI tokens, and — when added — clock contracts, with **zero** external technical dependencies (no SQLite, no Discord, no Pino). Today this is `TOKENS`, the `AppError` hierarchy, and the `Logger` contract in `shared/logging/logger.port.ts`. Domain and application code import the logger contract from here; the pino implementation never lives in `shared/`.
-- **`infrastructure/` (Technical adapters & implementations):** Contains concrete implementations that integrate with external libraries and technical drivers (SQLite with `better-sqlite3`, `pino` logger; `@discordjs/voice` audio playback is planned). The DI container itself is assembled in `src/app/composition.ts`, not in infrastructure.
+- **`shared/` (Technology-independent cross-cutting primitives):** Contains shared types, error definitions, DI tokens, and — when added — clock contracts, with **zero** external technical dependencies (no SQLite, no Discord, no Pino). Today this is `TOKENS`, the `AppError` hierarchy, the `Logger` contract in `shared/logging/logger.port.ts`, and the `Clock` contract in `shared/clock.ts`. Domain and application code import the logger contract from here; the pino implementation never lives in `shared/`.
+- **`infrastructure/` (Technical adapters & implementations):** Contains concrete implementations that integrate with external libraries and technical drivers (SQLite with `better-sqlite3`, `pino` logger, and `@discordjs/voice` audio playback). The DI container itself is assembled in `src/app/composition.ts`, not in infrastructure.
 
 ## 2. Responsibilities of important files
 
@@ -221,9 +238,15 @@ Everything else in the tree is planned. In particular, the command layer, voice 
 | `modules/reminders/reminders.errors.ts` | Named error for a role mention without a role id. |
 | `discord/discord-messages.ts` | Implemented channel resolution, permission checks, and message send with the exact allowed-mentions payload. |
 | `discord/discord.errors.ts` | Named not-found and permission errors for text delivery. |
-| `modules/reminders/voice/channel-eligibility.ts` | Evaluates channel eligibility: supported type, bot permissions, human presence, and private channel policy. |
-| `modules/reminders/voice/voice-cycle.ts` | Manages sequential voice channel visits under the guild voice lock, rechecking eligibility immediately before connecting. |
-| `modules/reminders/voice/voice-announcement.service.ts` | Coordinates the voice reminder cycle using the per-guild mutex (`VoiceCoordinator`). |
+| `modules/reminders/voice/voice-channels.port.ts` | Implemented ports for the channel directory and voice transport, both provided by Discord adapters. |
+| `modules/reminders/voice/channel-eligibility.ts` | Implemented rules: standard voice channel, bot permissions, human presence, and permission-based privacy. |
+| `modules/reminders/voice/voice-cycle.ts` | Implemented sequential iteration with immediate pre-join recheck and per-channel failure isolation. |
+| `modules/reminders/voice/voice-coordinator.ts` | Implemented per-guild mutex; overlapping cycles are skipped. |
+| `modules/reminders/voice/voice-announcement.service.ts` | Implemented cycle entry point used by the reminder handler. |
+| `discord/discord-channels.ts` | Implemented voice channel directory adapter producing plain snapshots. |
+| `discord/voice-transport.ts` | Implemented `@discordjs/voice` join, playback, timeouts, and cleanup in `finally`. |
+| `infrastructure/audio/audio-library.ts` | Implemented local asset lookup and startup validation (warning only). |
+| `infrastructure/audio/audio-player.ts` | Implemented raw PCM audio resource creation; no ffmpeg required. |
 
 ### Infrastructure and Shared Code
 
@@ -357,7 +380,7 @@ The exact lint or dependency-checking tool is **Open**. The rules must be enforc
 
 ## 6. Testing layout and dependency mocking
 
-**Current status:** the existing suite has 13 test files and reports 64 passing tests. `npx tsc --noEmit` passes. Tests use the Node.js built-in test runner (`node --test`) with TypeScript support via `tsx`.
+**Current status:** the existing suite has 15 test files and reports 71 passing tests. `npx tsc --noEmit` passes. Tests use the Node.js built-in test runner (`node --test`) with TypeScript support via `tsx`.
 
 ### Test directory layout:
 
@@ -371,7 +394,8 @@ The exact lint or dependency-checking tool is **Open**. The rules must be enforc
   - `discord/discord-messages.test.ts` — Channel resolution, permission checks, exact payload, and named delivery errors.
   - `reminders/text-announcement.test.ts` — Both mention modes and failure containment.
   - `reminders/reminder-handler.test.ts` — Event routing, fresh snapshots, disabled/missing settings, and error boundaries.
-  - `voice/` — Planned: channel eligibility rules and sequential visit logic.
+  - `voice.test.ts` — Eligibility rules, pre-join recheck, failure isolation, per-guild lock, and disabled/overlapping cycles.
+  - `audio/audio-library.test.ts` — Local asset presence and startup validation.
 - `test/integration/` — Subsystem integration tests with real in-memory dependencies:
   - `persistence.test.ts` — SQLite migrations, table initialization, WAL mode, atomic upserts through the settings module's `SettingsStore`, and Zod rejection behavior.
   - `location-prayer-times.test.ts` — Full Location → Prayer Times flow, city overrides, required-city countries, DST, high latitudes, and external reference comparisons.
@@ -390,7 +414,7 @@ The exact lint or dependency-checking tool is **Open**. The rules must be enforc
 The remaining tree is provisional until these are settled or implemented:
 
 - Delivery-ledger adapter, commit ordering, and retention — implemented in M4; commit-before-dispatch is Confirmed.
-- Voice and audio libraries; `discord.js` v14 is already used for the gateway client.
+- Voice and audio libraries are implemented with `@discordjs/voice`, `opusscript`, and local PCM assets; live playback verification is still pending.
 - Whether setup drafts survive restart.
 - Whether `/test` shares the real voice lock and whether it sends real mentions.
 - Whether the single-timer scheduler needs a different in-process strategy (implemented as one timer plus heartbeat in M4).

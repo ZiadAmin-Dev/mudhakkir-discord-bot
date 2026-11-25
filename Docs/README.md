@@ -70,9 +70,10 @@ The repository now contains a partial TypeScript implementation, not only docume
 - **M2 foundation implemented:** SQLite connection and migrations, guild settings schema, settings store/service, and validation. The settings store is owned by the settings module while the shared database connection and migrations stay in `infrastructure/persistence/`; all modules use the same SQLite database. `SettingsService` depends on abstractions (`ISettingsStore` port and shared `Logger` contract), and restart durability is verified by a close/reopen test.
 - **M3 implemented and verified:** Location and Prayer Times modules, with unit and integration tests covering the full flow, DST, high latitudes, and external references.
 - **M4 implemented and verified:** in-process scheduler with one timer and a heartbeat, event builder, delivery ledger with commit-before-dispatch, restart recovery, and 7-day pruning.
-- **M5 text path implemented and verified:** the scheduler's callback now loads fresh settings and delivers announcements to the configured channel with exact `@everyone`/role mentions. Voice delivery and commands remain planned (M6/M7).
-- **Verification:** `npx tsc --noEmit`, `npm run build`, and all 64 tests pass across 13 test files.
-- **Known gap:** `/test` behavior and the command layer arrive in M7; voice announcements arrive in M6. See the [implementation roadmap](development/implementation-roadmap.md#current-implementation-status).
+- **M5 text path implemented and verified:** the scheduler's callback loads fresh settings and delivers announcements with exact `@everyone`/role mentions.
+- **M6 voice path implemented and verified offline:** eligibility rules, per-guild lock, sequential join/play/disconnect, and local PCM audio assets. Live Discord playback is not yet verified.
+- **Verification:** `npx tsc --noEmit`, `npm run build`, and all 71 tests pass across 15 test files.
+- **Known gap:** no command layer or `/test` command yet (M7); audio assets are placeholder tones. See the [implementation roadmap](development/implementation-roadmap.md#current-implementation-status).
 
 The [implementation roadmap](development/implementation-roadmap.md) is the authoritative summary of what exists, what is partial, and what remains.
 
