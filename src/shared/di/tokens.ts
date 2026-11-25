@@ -21,7 +21,9 @@ export const TOKENS = {
   DeliveryLedger: Symbol.for('DeliveryLedger'),
   SchedulerService: Symbol.for('SchedulerService'),
   DueEventCallback: Symbol.for('DueEventCallback'),
+  TextMessageSender: Symbol.for('TextMessageSender'),
   TextAnnouncementService: Symbol.for('TextAnnouncementService'),
+  ReminderHandler: Symbol.for('ReminderHandler'),
   VoiceAnnouncementService: Symbol.for('VoiceAnnouncementService'),
   VoiceCoordinator: Symbol.for('VoiceCoordinator')
 } as const;

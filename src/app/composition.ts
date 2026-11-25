@@ -13,6 +13,7 @@ import { createLogger } from '../infrastructure/logging/index.js';
 import { Logger } from '../shared/logging/logger.port.js';
 import { createDatabase, runMigrations } from '../infrastructure/persistence/storage.js';
 import { createDiscordClient } from '../discord/client.js';
+import { DiscordMessageSender } from '../discord/discord-messages.js';
 import { SettingsService, SettingsStore } from '../modules/settings/index.js';
 import { LocationService } from '../modules/location/index.js';
 import { PrayerTimesService } from '../modules/prayer-times/index.js';
@@ -23,6 +24,7 @@ import {
   DueEventCallback,
   SchedulingService
 } from '../modules/scheduling/index.js';
+import { IReminderHandler, ReminderHandler, TextAnnouncementService } from '../modules/reminders/index.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -69,13 +71,14 @@ export function initContainer(
   di.registerSingleton(TOKENS.LocationService, LocationService);
   di.registerSingleton(TOKENS.PrayerTimesService, PrayerTimesService);
 
-  // 8. Scheduling. The callback is replaced by the reminder handler in M5.
-  const dueEventCallback: DueEventCallback = (event) => {
-    logger.debug(
-      { eventKey: event.eventKey, prayer: event.prayer, eventType: event.eventType },
-      'Due prayer event dispatched (no reminder handler registered)'
-    );
-  };
+  // 8. Reminder handler and text delivery.
+  di.registerSingleton(TOKENS.TextMessageSender, DiscordMessageSender);
+  di.registerSingleton(TOKENS.TextAnnouncementService, TextAnnouncementService);
+  di.registerSingleton(TOKENS.ReminderHandler, ReminderHandler);
+
+  // 9. Scheduling. The scheduler receives the reminder handler as its due-event callback.
+  const reminderHandler = di.resolve<IReminderHandler>(TOKENS.ReminderHandler);
+  const dueEventCallback: DueEventCallback = (event) => reminderHandler.handle(event);
   di.registerInstance<DueEventCallback>(TOKENS.DueEventCallback, dueEventCallback);
   di.registerSingleton(TOKENS.SchedulerService, SchedulingService);
 
