@@ -16,7 +16,7 @@ The repository contains a working M1/M2 foundation and an implemented M3 (Locati
 | **M2** | **Implemented and verified** | SQLite, WAL, migrations, `guild_settings`, `delivery_ledger` table, settings store/service, and Zod validation exist. `SettingsService` depends on an `ISettingsStore` port and a shared `Logger` contract, with `SettingsStore` as the settings module's SQLite adapter. A close/reopen persistence test verifies restart durability. |
 | **M3** | **Implemented and verified** | Location and Prayer Times modules exist, using `adhan` with all supported methods and Standard Asr. Unit and integration tests cover the full flow, DST, high latitudes, and external references. |
 | **M4** | **Implemented and verified** | The M4.1 study is in [`technical/scheduling-design.md`](../technical/scheduling-design.md); M4.2 implemented the clock port, event builder, single-timer scheduler with heartbeat, module-owned delivery-ledger adapter, commit-before-dispatch, restart recovery, and 7-day pruning. |
-| **M5** | **Not started** | No text announcement builder or delivery adapter. |
+| **M5** | **Text path implemented; M6/M7 items pending** | Reminder handler, text builder/service, and Discord sender deliver `PRAYER_TIME_REACHED` events with exact `@everyone`/role mentions. Voice path and `/test` command behavior remain planned. |
 | **M6** | **Not started** | No voice library, audio assets, or voice coordinator. |
 | **M7** | **Not started** | No command router, authorization, or slash commands. |
 | **M8** | **Not started** | No deployment descriptors, end-to-end suite, or completed crash boundaries. |
@@ -24,7 +24,7 @@ The repository contains a working M1/M2 foundation and an implemented M3 (Locati
 ### Verified now
 
 - `npx tsc --noEmit` passes.
-- `npm test` reports 49 passing tests across nine files: configuration, DI/composition, Discord client intents, persistence/settings, location, prayer times, scheduling, and the Location → Prayer Times and Scheduling → Persistence integration suites.
+- `npm test` reports 64 passing tests across 13 files: configuration, DI/composition, Discord client intents and message sender, persistence/settings, location, prayer times, scheduling, text announcements, reminder handler, and the Location → Prayer Times, Scheduling → Persistence, and Scheduler → Text Delivery integration suites.
 - Migrations create `guild_settings`, `delivery_ledger`, and `schema_migrations`.
 - Settings can be saved, retrieved, partially updated, toggled, deleted, and reject invalid input.
 - Location resolves only countries/cities present in curated JSON, applies default-city and country-level calculation-method rules, and rejects unsupported selections. No external geocoding is used.
@@ -33,13 +33,16 @@ The repository contains a working M1/M2 foundation and an implemented M3 (Locati
 - `SettingsService` depends on abstractions (`ISettingsStore` port and shared `Logger` contract), not concrete infrastructure types.
 - The scheduler builds events for the current and next local calendar day, drops past triggers, arms one `setTimeout` for the earliest event, uses a 15-minute heartbeat as a backstop, and rebuilds on settings changes. A fake clock and `tick()` make dispatch deterministic in tests.
 - The delivery ledger is owned by the scheduling module (`src/modules/scheduling/delivery-ledger-store/delivery-ledger-store.ts`), commits keys **before** dispatch, and prunes rows older than 7 days. Tests verify no replay after a database close/reopen and deduplication across restarts.
+- The reminder handler is the scheduler's due-event callback. It loads a fresh settings snapshot per event, skips missing/disabled guilds, and delivers only `PRAYER_TIME_REACHED` events through the text path; `PRAYER_APPROACHING` awaits M6.
+- Text announcements apply exactly one mention mode (`@everyone` or one role) via `allowedMentions`, and delivery failures are logged and contained. Integration tests verify one message per due event and none for disabled guilds.
 - Feature persistence adapters are owned by their modules (`src/modules/settings/settings-store/settings-store.ts` today), with each concern in its own folder per the [folder convention](../architecture/code-structure.md#folder-convention-applies-to-every-module); `infrastructure/persistence/` keeps only the shared connection and migrations. All modules use the same SQLite database.
 - `tsc` does not copy SQL migrations into `dist`; the `build` script runs `copy-migrations.mjs` after `tsc`, which copies migrations to `dist/infrastructure/persistence/migrations` and exits non-zero if the migrations directory is missing.
 - `unhandledRejection` is logged but does not terminate the process.
 
 ### Known gaps
 
-- The scheduler dispatches to a no-op callback registered in the composition root; the reminder handler and announcement paths arrive in M5/M6.
+- No voice path exists: `PRAYER_APPROACHING` events are intentionally ignored until M6.
+- No command layer or `/test` behavior exists; settings can only be seeded directly in tests until M7.
 - `unhandledRejection` is logged but does not terminate the process.
 - Live Discord login and graceful shutdown against the real gateway have not been recorded as verified.
 
@@ -196,11 +199,15 @@ Implement the in-process dynamic scheduling engine and the durable delivery ledg
 ### Goal & Expected Outcome
 Implement the text reminder path that formats announcement messages and delivers them to the configured Discord text channel with strictly controlled mentions (`@everyone` or a specific role), fully isolated from voice delivery.
 
+### Status: text path implemented (M5); voice and `/test` planned for M6/M7
+
 ### Main Modules & Files Involved
-- `src/modules/reminders/text/text-message.builder.ts` — Formats text reminder message containing the prayer name and mention string
-- `src/discord/discord-messages.ts` — Discord text message delivery adapter with permission checks (`SendMessages`, `MentionEveryone`)
-- `src/modules/reminders/text/text-announcement.service.ts` — Text announcement orchestration
-- `src/modules/reminders/reminder-handler.ts` — Top-level dispatcher connecting scheduler events to reminder services
+- `src/modules/reminders/reminder-handler/reminder-handler.ts` — Implemented callback: fresh settings per event, routes reached events to text, ignores approaching events until M6.
+- `src/modules/reminders/text/text-message.builder.ts` — Implemented pure builder for prayer content and exact `allowedMentions`.
+- `src/modules/reminders/text/text-announcement.service.ts` — Implemented text orchestration with contained failures.
+- `src/modules/reminders/text/text-message-sender.port.ts` — Implemented module-owned delivery port.
+- `src/discord/discord-messages.ts` — Implemented Discord adapter with channel resolution and `ViewChannel`/`SendMessages`/`MentionEveryone` checks.
+- `src/discord/discord.errors.ts` — Named channel-not-found and permission errors.
 
 ### Dependencies
 - **Milestone 1** (Discord client).
@@ -208,10 +215,11 @@ Implement the text reminder path that formats announcement messages and delivers
 - **Milestone 4** (Scheduler event dispatch).
 
 ### Essential Tests & Acceptance Criteria
-- [ ] When `@everyone` is configured, the message mentions `@everyone` and sets `allowedMentions: { parse: ['everyone'] }`.
-- [ ] When a role is configured, the message mentions `<@&roleId>` and suppresses `@everyone` mentions (FR-062, BR-037).
-- [ ] Delivery failure in the text channel (e.g. missing permissions or deleted channel) is logged cleanly and does not crash the process or impede subsequent events (BR-034, FR-065).
-- [ ] Unit tests verify independent dispatch: text reminder triggers at prayer time even if the voice cycle failed or is still executing (BR-030).
+- [x] When `@everyone` is configured, the message mentions `@everyone` and sets `allowedMentions: { parse: ['everyone'] }`.
+- [x] When a role is configured, the message mentions `<@&roleId>` and suppresses `@everyone` mentions (FR-062, BR-037).
+- [x] Delivery failure in the text channel (e.g. missing permissions or deleted channel) is logged cleanly and does not crash the process or impede subsequent events (BR-034, FR-065).
+- [x] Unit tests verify independent dispatch: text reminder triggers at prayer time even if the voice cycle failed or is still executing (BR-030) — the handler ignores approaching events and text failures are contained.
+- [ ] `/test` reuses delivery services without consuming a real event (BR-051) — deferred to M7's command layer.
 
 ---
 

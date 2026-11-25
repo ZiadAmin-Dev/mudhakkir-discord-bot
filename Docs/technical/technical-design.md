@@ -105,6 +105,7 @@ The M4.1 study of scheduling concepts, edge cases, and the proposed minimal desi
   - In addition, commands define `default_member_permissions: PermissionFlagsBits.ManageGuild` in their slash definition to hide/disable them in the Discord UI for regular members.
 
 ### Text Announcements & Mentions
+- **Status:** **Implemented** (M5). Built by `buildTextAnnouncement`, delivered through the `ITextMessageSender` port by `DiscordMessageSender`; the reminder handler is the scheduler callback. Voice remains planned.
 - **Channel Target:** Retrieved from persisted guild configuration.
 - **Mention Target:**
   - Configurable as either `@everyone` or a specific role snowflake (e.g., `<@&role_id>`).
@@ -296,6 +297,6 @@ Recorded from the current source tree; these must be closed before the affected 
 
 | Gap | Impact | Related milestone |
 | --- | --- | --- |
-| No reminder handler; the scheduler dispatches to a no-op callback. | Due events do not yet produce announcements. | M5 |
+| No voice path; `PRAYER_APPROACHING` events are ignored until M6, and `/test` behavior awaits M7. | No voice announcements or safe test command yet. | M6/M7 |
 | `unhandledRejection` is logged but does not terminate the process. | Process may continue in an unknown state, contrary to the documented target. | M8 |
 | No live Discord login verification recorded. | Connection code exists and unit tests pass, but gateway authentication is unverified. | M1/M8 |

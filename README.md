@@ -81,7 +81,7 @@ npm test
 
 ## Status
 
-The project follows an 8-milestone roadmap. M1 (foundation), M2 (database & settings), M3 (Location and Prayer Times), and M4 (scheduling and duplicate protection) are implemented and verified; M5–M8 remain. See [`Docs/development/implementation-roadmap.md`](./Docs/development/implementation-roadmap.md) for current status and known gaps.
+The project follows an 8-milestone roadmap. M1 (foundation), M2 (database & settings), M3 (Location and Prayer Times), M4 (scheduling and duplicate protection), and M5's text announcement path are implemented and verified; voice (M6), commands (M7), and hardening (M8) remain. See [`Docs/development/implementation-roadmap.md`](./Docs/development/implementation-roadmap.md) for current status and known gaps.
 
 ## License
 

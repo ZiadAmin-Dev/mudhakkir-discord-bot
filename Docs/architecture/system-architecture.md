@@ -44,13 +44,13 @@ The current source tree is a foundation, not the complete design below:
 | Logging and DI | **Implemented.** Pino logger and a `tsyringe` composition root exist. |
 | Persistence | **Implemented.** SQLite, WAL mode, migrations, `guild_settings`, and `delivery_ledger` exist. The settings and scheduling modules own their SQLite adapters; the ledger uses commit-before-dispatch and 7-day pruning. All modules use the same database. |
 | Location | **Implemented.** The module owns curated country/city JSON reference data and exposes a single service (`ILocationService`) that queries it and resolves locations. Only locations present in the JSON files can be resolved; unsupported selections are rejected. No database tables or migrations were added for this reference data. |
-| Discord | **Implemented for connection only.** The `discord.js` client uses the Guilds and GuildVoiceStates intents. Commands, registration, and authorization are not implemented. |
+| Discord | **Implemented for connection and text delivery.** The `discord.js` client uses the Guilds and GuildVoiceStates intents; the message-sender adapter resolves channels, checks permissions, and applies exact `allowedMentions`. Commands, registration, and authorization are not implemented. |
 | Prayer calculation | **Implemented.** The module uses `adhan` with all supported methods, Standard Asr, and IANA timezone formatting; unit and integration tests verify the flow from Location resolution. |
-| Scheduling | **Implemented.** One-timer scheduler with heartbeat, event builder, delivery ledger with commit-before-dispatch, restart recovery, and a fake-clock test suite. It currently dispatches to a no-op callback until M5 supplies the reminder handler. |
-| Announcements | **Not implemented.** These remain the target design in sections 5–7. |
+| Scheduling | **Implemented.** One-timer scheduler with heartbeat, event builder, delivery ledger with commit-before-dispatch, restart recovery, and a fake-clock test suite. Its callback is the reminder handler. |
+| Announcements | **Text implemented; voice planned.** Due prayer events deliver text with exact mention control; sections 7.3–7.5 (voice, flow, `/test`) remain target design for M6/M7. |
 | Shutdown | **Partially implemented.** The scheduler is stopped first, then the Discord client is destroyed on `SIGINT`/`SIGTERM`; voice and database teardown arrive with their components. |
 
-`npx tsc --noEmit` passes and the current test suite reports 49 passing tests. The [implementation roadmap](../development/implementation-roadmap.md) tracks milestone status and known gaps.
+`npx tsc --noEmit` passes and the current test suite reports 64 passing tests. The [implementation roadmap](../development/implementation-roadmap.md) tracks milestone status and known gaps.
 
 ## 2. Layered Architecture & Module Map
 
@@ -300,7 +300,7 @@ The scheduler rebuild must:
 
 ## 6. Prayer calculation, scheduling, and event handling
 
-**Implementation status: M3 and M4 implemented.** Section 6.1 is the implemented prayer-times module; Sections 6.2–6.4 are implemented by the scheduling module as described in [`technical/scheduling-design.md`](../technical/scheduling-design.md). Section 7 (announcements) remains the target design for M5/M6.
+**Implementation status: M3 and M4 implemented.** Section 6.1 is the implemented prayer-times module; Sections 6.2–6.4 are implemented by the scheduling module as described in [`technical/scheduling-design.md`](../technical/scheduling-design.md). Section 7.2 (text) is implemented in M5; the voice sections remain target design for M6/M7.
 
 ### 6.1 Prayer calculation
 
@@ -346,7 +346,7 @@ The reminder handler loads the current settings snapshot and starts the appropri
 
 ## 7. Announcement paths
 
-**Implementation status: not started.** No text or voice service exists yet. The `delivery_ledger` table now has an adapter and is used by the scheduler, but the scheduler's due-event callback is still a temporary no-op. Sections 7.1–7.5 are the target design for M5 and M6.
+**Implementation status: text path implemented (M5), voice path not started.** Section 7.2 is implemented by `TextAnnouncementService`, `buildTextAnnouncement`, and `DiscordMessageSender`; the reminder handler loads a fresh settings snapshot and contains failures. Sections 7.3–7.5 are the target design for M6/M7.
 
 ### 7.1 Independence invariant
 

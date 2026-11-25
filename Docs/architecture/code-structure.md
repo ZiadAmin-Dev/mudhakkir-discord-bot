@@ -82,10 +82,15 @@ src/
 │   │       └── scheduling.service.ts
 │   └── reminders/
 │       ├── index.ts
-│       ├── reminder-handler.ts
+│       ├── reminders.errors.ts
+│       ├── reminder-handler/
+│       │   ├── index.ts
+│       │   └── reminder-handler.ts
 │       ├── text/
-│       │   ├── text-announcement.service.ts
-│       │   └── text-message.builder.ts
+│       │   ├── index.ts
+│       │   ├── text-message-sender.port.ts
+│       │   ├── text-message.builder.ts
+│       │   └── text-announcement.service.ts
 │       └── voice/
 │           ├── voice-announcement.service.ts
 │           ├── channel-eligibility.ts
@@ -136,7 +141,7 @@ Folder layout follows the convention in [§3](#3-module-public-entry-points): im
 | Area | Implemented paths |
 | --- | --- |
 | Entry and lifecycle | `src/index.ts`, `src/app/config.ts`, `src/app/composition.ts`, `src/app/bootstrap.ts`, `src/app/shutdown.ts` |
-| Discord | `src/discord/client.ts` |
+| Discord | `src/discord/client.ts`, `src/discord/discord-messages.ts`, `src/discord/discord.errors.ts` |
 | Settings | `src/modules/settings/index.ts`, `src/modules/settings/settings.types.ts`, `src/modules/settings/settings.validation.ts`, `src/modules/settings/settings.errors.ts`, `src/modules/settings/settings-store/index.ts`, `src/modules/settings/settings-store/settings-store.port.ts`, `src/modules/settings/settings-store/settings-store.ts`, `src/modules/settings/settings-service/index.ts`, `src/modules/settings/settings-service/settings.service.ts` |
 | Location | `src/modules/location/index.ts`, `src/modules/location/location.types.ts`, `src/modules/location/location.validation.ts`, `src/modules/location/location.errors.ts`, `src/modules/location/location-service/index.ts`, `src/modules/location/location-service/location.service.ts`, `src/modules/location/data/countries.json`, `src/modules/location/data/cities.json` |
 | Prayer Times | `src/modules/prayer-times/index.ts`, `src/modules/prayer-times/prayer-time.types.ts`, `src/modules/prayer-times/prayer-times.errors.ts`, `src/modules/prayer-times/prayer-calculation.ts`, `src/modules/prayer-times/prayer-times-service/index.ts`, `src/modules/prayer-times/prayer-times-service/prayer-times.service.ts` |
@@ -144,9 +149,10 @@ Folder layout follows the convention in [§3](#3-module-public-entry-points): im
 | Logging | `src/infrastructure/logging/index.ts`, `src/infrastructure/logging/pino-logger.ts` |
 | Shared | `src/shared/di/tokens.ts`, `src/shared/error/app-error.ts`, `src/shared/logging/logger.port.ts`, `src/shared/clock.ts` |
 | Scheduling | `src/modules/scheduling/index.ts`, `src/modules/scheduling/event.types.ts`, `src/modules/scheduling/event-builder.ts`, `src/modules/scheduling/delivery-ledger.ts`, `src/modules/scheduling/delivery-ledger-store/index.ts`, `src/modules/scheduling/delivery-ledger-store/delivery-ledger-store.port.ts`, `src/modules/scheduling/delivery-ledger-store/delivery-ledger-store.ts`, `src/modules/scheduling/scheduling-service/index.ts`, `src/modules/scheduling/scheduling-service/scheduling.service.ts` |
-| Tests | `test/unit/config.test.ts`, `test/unit/di-container.test.ts`, `test/unit/discord-client.test.ts`, `test/unit/location/location.test.ts`, `test/unit/prayer-times/prayer-times.test.ts`, `test/unit/scheduling/scheduling.test.ts`, `test/integration/persistence.test.ts`, `test/integration/location-prayer-times.test.ts`, `test/integration/scheduling-persistence.test.ts` |
+| Reminders (text path) | `src/modules/reminders/index.ts`, `src/modules/reminders/reminders.errors.ts`, `src/modules/reminders/reminder-handler/index.ts`, `src/modules/reminders/reminder-handler/reminder-handler.ts`, `src/modules/reminders/text/index.ts`, `src/modules/reminders/text/text-message-sender.port.ts`, `src/modules/reminders/text/text-message.builder.ts`, `src/modules/reminders/text/text-announcement.service.ts` |
+| Tests | `test/unit/config.test.ts`, `test/unit/di-container.test.ts`, `test/unit/discord-client.test.ts`, `test/unit/discord/discord-messages.test.ts`, `test/unit/location/location.test.ts`, `test/unit/prayer-times/prayer-times.test.ts`, `test/unit/scheduling/scheduling.test.ts`, `test/unit/reminders/text-announcement.test.ts`, `test/unit/reminders/reminder-handler.test.ts`, `test/integration/persistence.test.ts`, `test/integration/location-prayer-times.test.ts`, `test/integration/scheduling-persistence.test.ts`, `test/integration/scheduled-text-delivery.test.ts` |
 
-Everything else in the tree is planned. In particular, the command layer, reminders, announcements, voice stack, and audio stack do not exist yet. The Location module is implemented with its reference data as files, not database tables or migrations. The scheduler dispatches to a temporary no-op callback until M5 supplies the reminder handler.
+Everything else in the tree is planned. In particular, the command layer, voice stack, and audio stack do not exist yet. The Location module is implemented with its reference data as files, not database tables or migrations. The scheduler's due-event callback is the reminder handler; only the text path is implemented so far.
 
 ### Layer Separation: `shared` vs `infrastructure`
 
@@ -208,8 +214,13 @@ Everything else in the tree is planned. In particular, the command layer, remind
 | `modules/scheduling/delivery-ledger-store/delivery-ledger-store.ts` | Implemented SQLite adapter for the `delivery_ledger` table, owned by the scheduling module and using the shared connection. |
 | `modules/scheduling/delivery-ledger.ts` | Implemented deduplication service: commit-before-dispatch, at-most-once semantics, and 7-day pruning. |
 | `shared/clock.ts` | Implemented `Clock` port and `SystemClock`; tests inject a fake clock and drive `tick()` deterministically. |
-| `modules/reminders/reminder-handler.ts` | Top-level dispatcher receiving scheduler events and independently invoking text and voice announcement pipelines. |
-| `modules/reminders/text/text-announcement.service.ts` | Formats and sends prayer reminders to the configured channel with accurate mentions. |
+| `modules/reminders/reminder-handler/reminder-handler.ts` | Implemented. Scheduler callback: loads a fresh settings snapshot per event, skips missing/disabled guilds, routes `PRAYER_TIME_REACHED` to text; voice awaits M6. |
+| `modules/reminders/text/text-message.builder.ts` | Implemented pure builder: prayer content plus exact `allowedMentions` for `@everyone` or one role. |
+| `modules/reminders/text/text-announcement.service.ts` | Implemented text orchestration; sender failures are logged and contained. |
+| `modules/reminders/text/text-message-sender.port.ts` | Implemented port implemented by the Discord adapter. |
+| `modules/reminders/reminders.errors.ts` | Named error for a role mention without a role id. |
+| `discord/discord-messages.ts` | Implemented channel resolution, permission checks, and message send with the exact allowed-mentions payload. |
+| `discord/discord.errors.ts` | Named not-found and permission errors for text delivery. |
 | `modules/reminders/voice/channel-eligibility.ts` | Evaluates channel eligibility: supported type, bot permissions, human presence, and private channel policy. |
 | `modules/reminders/voice/voice-cycle.ts` | Manages sequential voice channel visits under the guild voice lock, rechecking eligibility immediately before connecting. |
 | `modules/reminders/voice/voice-announcement.service.ts` | Coordinates the voice reminder cycle using the per-guild mutex (`VoiceCoordinator`). |
@@ -346,7 +357,7 @@ The exact lint or dependency-checking tool is **Open**. The rules must be enforc
 
 ## 6. Testing layout and dependency mocking
 
-**Current status:** the existing suite has nine test files and reports 49 passing tests. `npx tsc --noEmit` passes. Tests use the Node.js built-in test runner (`node --test`) with TypeScript support via `tsx`.
+**Current status:** the existing suite has 13 test files and reports 64 passing tests. `npx tsc --noEmit` passes. Tests use the Node.js built-in test runner (`node --test`) with TypeScript support via `tsx`.
 
 ### Test directory layout:
 
@@ -357,11 +368,15 @@ The exact lint or dependency-checking tool is **Open**. The rules must be enforc
   - `location/location.test.ts` — Curated country/city queries, default-city and city-required rules, country-level method defaults, rejection of unsupported locations, and no input normalization.
   - `prayer-times/prayer-times.test.ts` — Deterministic calculations, all method mappings, DST behavior, high-latitude unavailability, and the Standard Asr rule.
   - `scheduling/scheduling.test.ts` — Event generation, lead-time math, past-event filtering, DST calendar horizon, ledger semantics, fake-clock dispatch, late-event skip, fail-closed commits, and rebuild-on-change.
-  - `voice/` — Channel eligibility rules and sequential visit logic.
+  - `discord/discord-messages.test.ts` — Channel resolution, permission checks, exact payload, and named delivery errors.
+  - `reminders/text-announcement.test.ts` — Both mention modes and failure containment.
+  - `reminders/reminder-handler.test.ts` — Event routing, fresh snapshots, disabled/missing settings, and error boundaries.
+  - `voice/` — Planned: channel eligibility rules and sequential visit logic.
 - `test/integration/` — Subsystem integration tests with real in-memory dependencies:
   - `persistence.test.ts` — SQLite migrations, table initialization, WAL mode, atomic upserts through the settings module's `SettingsStore`, and Zod rejection behavior.
   - `location-prayer-times.test.ts` — Full Location → Prayer Times flow, city overrides, required-city countries, DST, high latitudes, and external reference comparisons.
   - `scheduling-persistence.test.ts` — Real-SQLite ledger persistence and pruning, no replay after restart, and merged multi-guild timeline.
+  - `scheduled-text-delivery.test.ts` — Scheduler → reminder handler → text delivery: one message per due event, exact role mentions, none for disabled guilds.
   - `commands/` — Slash command routing and authorization with mocked service dependencies.
 - `test/fixtures/` — Sample test data (pre-calculated prayer tables, valid/invalid settings JSON, test audio buffers).
 
