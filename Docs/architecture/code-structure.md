@@ -36,7 +36,9 @@ src/
 │   ├── client.ts
 │   ├── command-router.ts
 │   ├── authorization.ts
+│   ├── register-commands.ts
 │   ├── commands/
+│   │   ├── command-handler.ts
 │   │   ├── setup.ts
 │   │   ├── prayer-times.ts
 │   │   ├── settings.ts
@@ -169,7 +171,7 @@ Folder layout follows the convention in [§3](#3-module-public-entry-points): im
 | Audio | `assets/audio/*.pcm`, `src/infrastructure/audio/audio-library.ts`, `src/infrastructure/audio/audio-player.ts`, `src/infrastructure/audio/index.ts`, `scripts/generate-audio-assets.mjs` |
 | Tests | `test/unit/config.test.ts`, `test/unit/di-container.test.ts`, `test/unit/discord-client.test.ts`, `test/unit/discord/discord-messages.test.ts`, `test/unit/location/location.test.ts`, `test/unit/prayer-times/prayer-times.test.ts`, `test/unit/scheduling/scheduling.test.ts`, `test/unit/reminders/text-announcement.test.ts`, `test/unit/reminders/reminder-handler.test.ts`, `test/unit/reminders/voice.test.ts`, `test/unit/audio/audio-library.test.ts`, `test/integration/persistence.test.ts`, `test/integration/location-prayer-times.test.ts`, `test/integration/scheduling-persistence.test.ts`, `test/integration/scheduled-text-delivery.test.ts` |
 
-Everything else in the tree is planned. In particular, the command layer and authorization do not exist yet. The Location module is implemented with its reference data as files, not database tables or migrations. The scheduler's due-event callback is the reminder handler, which routes text and voice independently.
+Everything else in the tree is planned. In particular, the remaining M8 hardening and deployment files do not exist yet. The Location module is implemented with its reference data as files, not database tables or migrations. The scheduler's due-event callback is the reminder handler, which routes text and voice independently.
 
 ### Layer Separation: `shared` vs `infrastructure`
 
@@ -193,10 +195,12 @@ Everything else in the tree is planned. In particular, the command layer and aut
 | Path | Responsibility |
 | --- | --- |
 | `discord/client.ts` | Constructs `discord.js` Client with required gateway intents (`Guilds`, `GuildVoiceStates`) and error handlers. |
-| `discord/command-router.ts` | Planned. Dispatches slash commands and routes component interactions to the correct active flow; owns the in-memory flow registry keyed by `guildId:userId` with expiry, cancellation, and wrong-user rejection. |
-| `discord/authorization.ts` | Planned. Checks that the invoking member may run the command (`ManageGuild`/`Administrator` proposed) using authoritative interaction context; separates Discord platform permissions from application command access. |
-| `discord/commands/*.ts` | Planned presentation handlers (controller role). Validate raw input shape, convert it to canonical values, delegate to module services via constructor injection, acknowledge/defer, and respond ephemerally. No business rules or Location rule duplication here. |
-| `discord/flows/*.ts` | Planned multi-step setup and settings flows using select menus, buttons, and modals. Bound to one user and guild; state dies on expiry, cancellation, invalid state, or restart. |
+| `discord/command-router.ts` | Implemented. Dispatches slash commands and routes component interactions to the active flow; owns the in-memory registry keyed by `guildId:userId` with expiry and wrong-user rejection. |
+| `discord/authorization.ts` | Implemented. Checks the invoking member's `ManageGuild`/`Administrator` permission using authoritative interaction context. |
+| `discord/register-commands.ts` | Implemented. Slash-command definitions and REST registration on startup; UI defaults are not a security boundary. |
+| `discord/commands/command-handler.ts` | Implemented contracts for handlers and active flows. |
+| `discord/commands/*.ts` | Implemented presentation handlers. Validate input shape, convert to canonical values, delegate to module services, acknowledge/defer, and respond ephemerally. No business rules or Location rule duplication. |
+| `discord/flows/*.ts` | Implemented multi-step setup and settings flows using select menus, buttons, and modals. Bound to one user and guild; duplicate submissions are ignored, state dies on expiry/cancel/restart. |
 | `discord/discord-channels.ts` | Implemented. Inspects channel existence, types, human membership, effective bot permissions, and privacy for voice eligibility. |
 | `discord/discord-messages.ts` | Implemented. Sends text reminders to the configured channel with isolated mentions (`@everyone` or role snowflake). |
 | `discord/discord.errors.ts` | Implemented. Named not-found and permission errors for text delivery. |
@@ -382,7 +386,7 @@ The exact lint or dependency-checking tool is **Open**. The rules must be enforc
 
 ## 6. Testing layout and dependency mocking
 
-**Current status:** the existing suite has 15 test files and reports 71 passing tests. `npx tsc --noEmit` passes. Tests use the Node.js built-in test runner (`node --test`) with TypeScript support via `tsx`.
+**Current status:** the existing suite has 17 test files and reports 84 passing tests. `npx tsc --noEmit` passes. Tests use the Node.js built-in test runner (`node --test`) with TypeScript support via `tsx`.
 
 ### Test directory layout:
 
@@ -394,6 +398,7 @@ The exact lint or dependency-checking tool is **Open**. The rules must be enforc
   - `prayer-times/prayer-times.test.ts` — Deterministic calculations, all method mappings, DST behavior, high-latitude unavailability, and the Standard Asr rule.
   - `scheduling/scheduling.test.ts` — Event generation, lead-time math, past-event filtering, DST calendar horizon, ledger semantics, fake-clock dispatch, late-event skip, fail-closed commits, and rebuild-on-change.
   - `discord/discord-messages.test.ts` — Channel resolution, permission checks, exact payload, and named delivery errors.
+  - `discord/m7-commands.test.ts` — Authorization, router flow ownership/expiry, 25-option pagination, canonical select-menu setup, command handlers, and settings change callback.
   - `reminders/text-announcement.test.ts` — Both mention modes and failure containment.
   - `reminders/reminder-handler.test.ts` — Event routing, fresh snapshots, disabled/missing settings, and error boundaries.
   - `voice.test.ts` — Eligibility rules, pre-join recheck, failure isolation, per-guild lock, and disabled/overlapping cycles.
@@ -403,7 +408,8 @@ The exact lint or dependency-checking tool is **Open**. The rules must be enforc
   - `location-prayer-times.test.ts` — Full Location → Prayer Times flow, city overrides, required-city countries, DST, high latitudes, and external reference comparisons.
   - `scheduling-persistence.test.ts` — Real-SQLite ledger persistence and pruning, no replay after restart, and merged multi-guild timeline.
   - `scheduled-text-delivery.test.ts` — Scheduler → reminder handler → text delivery: one message per due event, exact role mentions, none for disabled guilds.
-  - `commands/` — Slash command routing and authorization with mocked service dependencies.
+  - `settings-rebuild.test.ts` — A settings change through DI triggers the scheduler rebuild callback and moves the next approaching event.
+  - `commands/` — Planned M8 end-to-end command tests with live Discord.
 - `test/fixtures/` — Sample test data (pre-calculated prayer tables, valid/invalid settings JSON, test audio buffers).
 
 ### Dependency mocking conventions:

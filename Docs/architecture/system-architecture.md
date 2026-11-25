@@ -50,7 +50,7 @@ The current source tree is a foundation, not the complete design below:
 | Announcements | **Text and voice implemented.** Due events deliver text with exact mentions; approaching events run a sequential voice cycle with a per-guild lock. Live Discord playback and `/test` remain unverified/planned. |
 | Shutdown | **Partially implemented.** The scheduler is stopped first, then the Discord client is destroyed on `SIGINT`/`SIGTERM`; voice and database teardown arrive with their components. |
 
-`npx tsc --noEmit` passes and the current test suite reports 71 passing tests. The [implementation roadmap](../development/implementation-roadmap.md) tracks milestone status and known gaps.
+`npx tsc --noEmit` passes and the current test suite reports 84 passing tests. The [implementation roadmap](../development/implementation-roadmap.md) tracks milestone status and known gaps.
 
 ## 2. Layered Architecture & Module Map
 
@@ -258,7 +258,7 @@ Gateway reconnection is an adapter concern. After reconnecting, the process must
 
 ## 5. Discord command and configuration flow
 
-**Implementation status: not started.** The flow below is the target design for M7. The current code exposes no command router, authorization adapter, or slash commands.
+**Implementation status: implemented and offline-verified.** The command router, authorization, six slash commands, setup/settings flows, and settings→scheduler callback exist. Live Discord interaction verification remains for M8.
 
 ### 5.1 Interaction flow
 
@@ -501,7 +501,7 @@ Error boundaries:
 
 | Boundary | Behavior |
 | --- | --- |
-| Command handler (planned) | Catch errors; if operational (`err instanceof AppError`), return user-friendly ephemeral message; if non-operational, log full stack trace and return generic error. Never crash process. |
+| Command handler / router | Implemented. Catch errors; operational errors become short actionable ephemeral messages, unexpected errors are logged with guild/user/command/interaction context and shown as a generic failure. Never crash the process. |
 | Scheduler timer callback | Catch all errors so one bad event cannot stop the scheduler loop. |
 | Reminder path | Catch voice and text failures independently. |
 | Voice channel iteration | Catch per channel, cleanly disconnect, continue to next eligible channel. |

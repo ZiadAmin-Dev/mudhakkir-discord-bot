@@ -18,13 +18,13 @@ The repository contains a working M1/M2 foundation and an implemented M3 (Locati
 | **M4** | **Implemented and verified** | The M4.1 study is in [`technical/scheduling-design.md`](../technical/scheduling-design.md); M4.2 implemented the clock port, event builder, single-timer scheduler with heartbeat, module-owned delivery-ledger adapter, commit-before-dispatch, restart recovery, and 7-day pruning. |
 | **M5** | **Text path implemented; M6/M7 items pending** | Reminder handler, text builder/service, and Discord sender deliver `PRAYER_TIME_REACHED` events with exact `@everyone`/role mentions. Voice path and `/test` command behavior remain planned. |
 | **M6** | **Implemented and verified (offline tests)** | `@discordjs/voice` transport, channel directory, eligibility rules, per-guild lock, sequential cycle, and local PCM assets. Live voice playback has not been verified on Discord. |
-| **M7** | **Not started** | No command router, authorization, or slash commands. |
+| **M7** | **Implemented and verified (offline tests)** | Six slash commands, router with user/guild-bound flow registry, setup/settings flows, select menus with 25-option pagination, and a settings→scheduler rebuild callback. Live Discord interaction verification remains for M8. |
 | **M8** | **Not started** | No deployment descriptors, end-to-end suite, or completed crash boundaries. |
 
 ### Verified now
 
 - `npx tsc --noEmit` passes.
-- `npm test` reports 71 passing tests across 15 files: configuration, DI/composition, Discord client intents and message sender, persistence/settings, location, prayer times, scheduling, text announcements, reminder handler, voice announcements, audio assets, and the Location → Prayer Times, Scheduling → Persistence, and Scheduler → Text Delivery integration suites.
+- `npm test` reports 84 passing tests across 17 files: configuration, DI/composition, Discord client intents, message sender, commands/flows/router, persistence/settings, location, prayer times, scheduling, text announcements, reminder handler, voice announcements, audio assets, and the Location → Prayer Times, Scheduling → Persistence, Scheduler → Text Delivery, and Settings → Scheduler Rebuild integration suites.
 - Migrations create `guild_settings`, `delivery_ledger`, and `schema_migrations`.
 - Settings can be saved, retrieved, partially updated, toggled, deleted, and reject invalid input.
 - Location resolves only countries/cities present in curated JSON, applies default-city and country-level calculation-method rules, and rejects unsupported selections. No external geocoding is used.
@@ -264,10 +264,15 @@ Implement sequential voice channel announcements: discover voice channels in the
 ### Goal & Expected Outcome
 Implement Discord slash commands and user interactions: administrator authorization checks, guided `/setup` interaction flow, `/settings` viewer/editor, `/prayer-times` viewer, `/test` trigger, and `/enable` / `/disable` toggles. Command handlers own **input validation and normalization**; services receive canonical values and apply business rules ([input boundary convention](../architecture/code-structure.md#input-boundary-convention-general-rule), ARCH-021).
 
+### Status: implemented (offline-verified); live Discord interaction verification pending M8
+
 ### Main Modules & Files Involved
-- `src/discord/authorization.ts` — Server-side permission validator (`ManageGuild` / `Administrator`)
+- `src/discord/authorization.ts` — Implemented server-side permission validator (`ManageGuild` / `Administrator`).
+- `src/discord/register-commands.ts` — Implemented slash-command definitions and REST registration on startup.
 - `src/discord/commands/*.ts` & `src/discord/flows/*.ts` — Validate raw interaction input and convert it to canonical values (trim free text, parse enums/numbers; country/city values come from Location select menus, not typed text), then call module services with those values. No business rules here.
-- `src/discord/command-router.ts` — Routes incoming interactions to handlers
+- `src/discord/command-router.ts` — Implemented router for slash commands and component interactions; owns the user/guild-bound flow registry.
+- `src/discord/commands/command-handler.ts` — Implemented handler/flow contracts.
+- `src/modules/settings/settings-service/settings.service.ts` — Implemented `SettingsChangeCallback`, wired in composition to `SchedulerService.rebuild(guildId)`.
 - `src/discord/commands/setup.ts` & `src/discord/flows/setup-flow.ts` — Guided multi-step configuration sequence
 - `src/discord/commands/settings.ts` & `src/discord/flows/settings-flow.ts` — View/update settings
 - `src/discord/commands/prayer-times.ts` — Displays today's 5 prayer times for server members
@@ -282,15 +287,16 @@ Implement Discord slash commands and user interactions: administrator authorizat
 - **Milestone 6** (Voice announcements).
 
 ### Essential Tests & Acceptance Criteria
-- [ ] Command handlers reject malformed input with an actionable ephemeral message and pass only canonical values to services; no raw Discord interaction data reaches a service (ARCH-021).
-- [ ] Non-administrators attempting to invoke configuration commands are rejected with an ephemeral permission error (BR-063, BR-064), using authoritative interaction context rather than user-supplied IDs.
-- [ ] `/setup` country and city selection use paginated 25-option select menus populated from `ILocationService.listCountries()` / `listCities()`; option values are canonical codes/IDs and no country text normalization or fuzzy search is performed.
-- [ ] Location business rules (country existence, required city, default city, city membership, final resolution) are applied only by Location; the Discord layer does not duplicate them or the reference data.
-- [ ] Component interactions route to the correct user- and guild-bound active flow; expired, cancelled, wrong-user, invalid-state, and duplicate submissions are contained with an ephemeral notice and no state change.
-- [ ] Interactions are acknowledged within Discord's deadline via reply/defer; configuration flows are ephemeral, `/prayer-times` is public by default (Proposed), and unexpected errors never expose stack traces or database details.
-- [ ] `/setup` successfully guides an administrator through location, text channel, mention preference, lead time, and private-channel choice, persisting a valid configuration on final confirmation only.
-- [ ] `/test` executes voice and/or text announcements on demand without consuming or altering upcoming scheduled prayer events or delivery-ledger records (BR-051).
-- [ ] `/disable` immediately suspends automated reminders; `/enable` recalculates and arms upcoming reminders without replaying missed events (BR-047).
+- [x] Command handlers reject malformed input with an actionable ephemeral message and pass only canonical values to services; no raw Discord interaction data reaches a service (ARCH-021).
+- [x] Non-administrators attempting to invoke configuration commands are rejected with an ephemeral permission error (BR-063, BR-064), using authoritative interaction context rather than user-supplied IDs.
+- [x] `/setup` country and city selection use paginated 25-option select menus populated from `ILocationService.listCountries()` / `listCities()`; option values are canonical codes/IDs and no country text normalization or fuzzy search is performed.
+- [x] Location business rules (country existence, required city, default city, city membership, final resolution) are applied only by Location; the Discord layer does not duplicate them or the reference data.
+- [x] Component interactions route to the correct user- and guild-bound active flow; expired, cancelled, wrong-user, and duplicate submissions are contained with an ephemeral notice and no state change.
+- [x] Interactions are acknowledged via reply/defer; configuration flows are ephemeral, `/prayer-times` is public by default (Proposed), and unexpected errors are logged with context without exposing stack traces or database details.
+- [x] `/setup` guides an administrator through location, text channel, mention preference, lead time, and private-channel choice, persisting a valid configuration with `enabled: false` only on final confirmation.
+- [x] `/test` executes voice and/or text announcements on demand without consuming or altering upcoming scheduled prayer events or delivery-ledger records (BR-051).
+- [x] `/disable` suspends automated reminders; `/enable` activates them; both notify the scheduler through the settings change callback (BR-047, BR-048).
+- [ ] Live Discord interaction, component, and command-registration verification remain for M8 end-to-end testing.
 
 ---
 

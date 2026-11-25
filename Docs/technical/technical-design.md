@@ -90,7 +90,7 @@ The M4.1 study of scheduling concepts, edge cases, and the proposed minimal desi
 ## 4. Discord Integration
 
 ### Recommended Library: `discord.js` (v14)
-- **Status:** **Implemented** for the gateway client; command handling and voice integration are still planned.
+- **Status:** **Implemented** for the gateway client, command handling (M7), and voice integration (M6).
 - **Rationale:** 
   - Standard, mature Discord API library for Node.js/TypeScript with comprehensive coverage of interactions, voice gateway v4/v10, and typed models.
   - Active maintenance, extensive documentation, and robust stability.
