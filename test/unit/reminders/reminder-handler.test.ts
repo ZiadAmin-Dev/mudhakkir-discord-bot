@@ -4,7 +4,11 @@ import assert from 'node:assert/strict';
 import { PrayerName } from '../../../src/modules/prayer-times/index.js';
 import { PrayerEvent } from '../../../src/modules/scheduling/index.js';
 import { GuildSettings, ISettingsService } from '../../../src/modules/settings/index.js';
-import { ITextAnnouncementService, ReminderHandler } from '../../../src/modules/reminders/index.js';
+import {
+  ITextAnnouncementService,
+  IVoiceAnnouncementService,
+  ReminderHandler
+} from '../../../src/modules/reminders/index.js';
 
 const settings: GuildSettings = {
   guildId: 'guild-1',
@@ -73,11 +77,19 @@ class FakeTextService implements ITextAnnouncementService {
   }
 }
 
+class FakeVoiceService implements IVoiceAnnouncementService {
+  readonly calls: Array<{ prayer: PrayerName; settings: GuildSettings }> = [];
+
+  async runCycle(prayer: PrayerName, snapshot: GuildSettings): Promise<void> {
+    this.calls.push({ prayer, settings: snapshot });
+  }
+}
+
 describe('Reminder handler (Milestone 5)', () => {
   it('dispatches a reached event with a fresh settings snapshot', async () => {
     const settingsService = new FakeSettingsService();
     const text = new FakeTextService();
-    new ReminderHandler(settingsService, text).handle(makeEvent('PRAYER_TIME_REACHED', 'asr'));
+    new ReminderHandler(settingsService, text, new FakeVoiceService()).handle(makeEvent('PRAYER_TIME_REACHED', 'asr'));
     await Promise.resolve();
 
     assert.deepEqual(
@@ -87,18 +99,20 @@ describe('Reminder handler (Milestone 5)', () => {
     assert.equal(text.calls[0].settings, settings);
   });
 
-  it('ignores approaching events until the voice path arrives in M6', async () => {
+  it('routes approaching events to voice and leaves text untouched', async () => {
     const text = new FakeTextService();
-    new ReminderHandler(new FakeSettingsService(), text).handle(makeEvent('PRAYER_APPROACHING'));
+    const voice = new FakeVoiceService();
+    new ReminderHandler(new FakeSettingsService(), text, voice).handle(makeEvent('PRAYER_APPROACHING', 'asr'));
     await Promise.resolve();
 
     assert.equal(text.calls.length, 0);
+    assert.deepEqual(voice.calls.map((call) => call.prayer), ['asr']);
   });
 
   it('skips events without enabled settings', async () => {
     const settingsService = new FakeSettingsService();
     const text = new FakeTextService();
-    const handler = new ReminderHandler(settingsService, text);
+    const handler = new ReminderHandler(settingsService, text, new FakeVoiceService());
 
     settingsService.current = null;
     handler.handle(makeEvent('PRAYER_TIME_REACHED'));
@@ -112,7 +126,7 @@ describe('Reminder handler (Milestone 5)', () => {
   it('contains settings read failures and text delivery failures', async () => {
     const settingsService = new FakeSettingsService();
     const text = new FakeTextService();
-    const handler = new ReminderHandler(settingsService, text);
+    const handler = new ReminderHandler(settingsService, text, new FakeVoiceService());
 
     settingsService.throwOnRead = true;
     handler.handle(makeEvent('PRAYER_TIME_REACHED')); // must not throw

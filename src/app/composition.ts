@@ -14,6 +14,9 @@ import { Logger } from '../shared/logging/logger.port.js';
 import { createDatabase, runMigrations } from '../infrastructure/persistence/storage.js';
 import { createDiscordClient } from '../discord/client.js';
 import { DiscordMessageSender } from '../discord/discord-messages.js';
+import { DiscordVoiceDirectory } from '../discord/discord-channels.js';
+import { DiscordVoiceTransport } from '../discord/voice-transport.js';
+import { validateAudioAssets } from '../infrastructure/audio/index.js';
 import { SettingsService, SettingsStore } from '../modules/settings/index.js';
 import { LocationService } from '../modules/location/index.js';
 import { PrayerTimesService } from '../modules/prayer-times/index.js';
@@ -24,7 +27,13 @@ import {
   DueEventCallback,
   SchedulingService
 } from '../modules/scheduling/index.js';
-import { IReminderHandler, ReminderHandler, TextAnnouncementService } from '../modules/reminders/index.js';
+import {
+  IReminderHandler,
+  ReminderHandler,
+  TextAnnouncementService,
+  VoiceAnnouncementService,
+  VoiceCoordinator
+} from '../modules/reminders/index.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -47,36 +56,43 @@ export function initContainer(
   const logger = createLogger(config.LOG_LEVEL, isDev);
   di.registerInstance<Logger>(TOKENS.Logger, logger);
 
-  // 3. Database & Migrations
+  // 3. Local audio assets (warn only; announcements degrade gracefully)
+  validateAudioAssets(logger);
+
+  // 4. Database & Migrations
   const dbPath = customDbPath ?? path.resolve(process.cwd(), 'data/mudhakkir.db');
   const db = createDatabase(dbPath, logger);
   const migrationsDir = path.resolve(__dirname, '../infrastructure/persistence/migrations');
   runMigrations(db, migrationsDir, logger);
   di.registerInstance(TOKENS.Database, db);
 
-  // 4. Discord Client
+  // 5. Discord Client
   const client = createDiscordClient(logger);
   di.registerInstance(TOKENS.DiscordClient, client);
 
-  // 5. Clock
+  // 6. Clock
   di.registerInstance<Clock>(TOKENS.Clock, new SystemClock());
 
-  // 6. Stores & Services (Singletons)
+  // 7. Stores & Services (Singletons)
   di.registerSingleton(TOKENS.SettingsStore, SettingsStore);
   di.registerSingleton(TOKENS.SettingsService, SettingsService);
   di.registerSingleton(TOKENS.DeliveryLedgerStore, DeliveryLedgerStore);
   di.registerSingleton(TOKENS.DeliveryLedger, DeliveryLedger);
 
-  // 7. Location & Prayer Times
+  // 8. Location & Prayer Times
   di.registerSingleton(TOKENS.LocationService, LocationService);
   di.registerSingleton(TOKENS.PrayerTimesService, PrayerTimesService);
 
-  // 8. Reminder handler and text delivery.
+  // 9. Text and voice delivery.
   di.registerSingleton(TOKENS.TextMessageSender, DiscordMessageSender);
   di.registerSingleton(TOKENS.TextAnnouncementService, TextAnnouncementService);
-  di.registerSingleton(TOKENS.ReminderHandler, ReminderHandler);
+  di.registerSingleton(TOKENS.VoiceChannelDirectory, DiscordVoiceDirectory);
+  di.registerSingleton(TOKENS.VoiceTransport, DiscordVoiceTransport);
+  di.registerSingleton(TOKENS.VoiceCoordinator, VoiceCoordinator);
+  di.registerSingleton(TOKENS.VoiceAnnouncementService, VoiceAnnouncementService);
 
-  // 9. Scheduling. The scheduler receives the reminder handler as its due-event callback.
+  // 10. Reminder handler and scheduling. The scheduler uses the handler as its callback.
+  di.registerSingleton(TOKENS.ReminderHandler, ReminderHandler);
   const reminderHandler = di.resolve<IReminderHandler>(TOKENS.ReminderHandler);
   const dueEventCallback: DueEventCallback = (event) => reminderHandler.handle(event);
   di.registerInstance<DueEventCallback>(TOKENS.DueEventCallback, dueEventCallback);

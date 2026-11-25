@@ -25,5 +25,7 @@ export const TOKENS = {
   TextAnnouncementService: Symbol.for('TextAnnouncementService'),
   ReminderHandler: Symbol.for('ReminderHandler'),
   VoiceAnnouncementService: Symbol.for('VoiceAnnouncementService'),
-  VoiceCoordinator: Symbol.for('VoiceCoordinator')
+  VoiceCoordinator: Symbol.for('VoiceCoordinator'),
+  VoiceChannelDirectory: Symbol.for('VoiceChannelDirectory'),
+  VoiceTransport: Symbol.for('VoiceTransport')
 } as const;
