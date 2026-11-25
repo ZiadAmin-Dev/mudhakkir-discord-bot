@@ -8,8 +8,8 @@ Status labels follow the [documentation conventions](../README.md#status-labels)
 
 ## 1. Prayer Calculation
 
-### Recommended Library: `adhan` (or `@batoulapps/adhan`)
-- **Status:** **Proposed**
+### Calculation Library: `adhan` (or `@batoulapps/adhan`)
+- **Status:** **Implemented** (M3)
 - **Rationale:** 
   - `adhan` (TypeScript/JavaScript port by Batoul Apps) is the battle-tested, standard open-source library for astronomical Islamic prayer-time calculations in Node.js.
   - Pure JavaScript/TypeScript with zero external native dependencies, ensuring high portability across operating systems (Linux/Windows/macOS).
@@ -34,29 +34,30 @@ Status labels follow the [documentation conventions](../README.md#status-labels)
 - **Asr Calculation:** Always uses the **Standard** rule (shadow length factor 1) per FR-004 and FR-025. This is fixed application-wide and is not configurable.
 
 ### Important Limitations & Setup Requirements
-- **High-Latitude Anomalies:** Locations above ~48° latitude experience periods in summer/winter where Fajr or Isha twilight does not occur naturally. `adhan` provides high-latitude approximation rules (e.g., `HighLatitudeRule.TwilightAngle` or `SeventhOfTheNight`). For MVP, `HighLatitudeRule.TwilightAngle` is proposed as the fallback to avoid calculation failures or `null`/`undefined` times.
+- **High-Latitude Anomalies:** Locations above ~48° latitude experience periods in summer/winter where Fajr or Isha twilight does not occur naturally. The implementation sets `HighLatitudeRule.TwilightAngle`; if the library still returns invalid times, the module throws its named `prayerTimesUnavailableError`. Integration tests cover Anchorage (valid) and an extreme polar date (error).
 - **Elevation:** Astronomical calculation operates at sea level by default. Elevation adjustments are negligible for Discord reminders and omitted in MVP to keep configuration simple.
 
 ---
 
 ## 2. Location & Timezone
 
-### Geocoding & City Selection
-- **MVP Strategy (Proposed):** Dual-tier approach:
-  1. **Pre-bundled Offline Major City Directory:** A lightweight static JSON dataset containing ~200-500 prominent Muslim cities globally (City, Country, Latitude, Longitude, canonical IANA Timezone). Ensures zero external network dependencies and immediate, rate-limit-free autocompletion for 90%+ of deployments.
-  2. **External Geocoding Adapter (Nominatim / OpenStreetMap):** Standard OSM Nominatim API (`https://nominatim.openstreetmap.org/search`) with a custom `User-Agent` header as an optional fallback when a city is not present in the local database.
-- **Alternative Open-source Choice:** Mapbox Geocoding or Open-Meteo Geocoding API (fast, free for non-commercial, no API key required for low volume).
-- **Setup Requirements:** Nominatim requires compliance with their Usage Policy: max 1 request/second and an identifying HTTP `User-Agent`.
+### Country & City Selection
+- **Status:** Location resolution is **implemented** (M3). The Prayer Times deliverables in this section remain planned.
+- **MVP Strategy (Implemented for Location):** Curated reference data only. `src/modules/location/data/countries.json` and `cities.json` hold supported countries (`cityRequired`, nullable `defaultCity`, IANA `timezones`, default calculation method) and their cities (coordinates, IANA timezone, nullable calculation-method override). All city `calculationMethod` values are currently `null`, so the country-level `defaultCalculationMethod` is authoritative; for example, UAE uses `Dubai` and the United States uses `NorthAmerica`. The JSON is reviewed as trusted reference data and is not validated at load time; it is never stored in SQLite. Zod validation in the module applies to resolved output only.
+- **Unsupported locations:** Only countries and cities present in the JSON files can be resolved. Unknown or unsupported selections are rejected with the module's named error; there is no external geocoding fallback for now.
+- **Deferred:** an external geocoding provider (for example Nominatim, Mapbox, or Open-Meteo) remains an open product decision and is not implemented.
 
 ### Coordinates & IANA Timezone Authority
 - **Coordinates:** Stored as decimal degrees (Latitude: -90.0 to +90.0, Longitude: -180.0 to +180.0).
 - **IANA Timezone:** Stored as an authoritative canonical IANA string (e.g., `"Africa/Cairo"`, `"Asia/Riyadh"`, `"Europe/London"`, `"America/New_York"`) (**Confirmed** per BR-040, FR-002).
-- **Timezone Derivation:** When geocoding external coordinates, the IANA zone is inferred via `tz-lookup` or `@photostructure/tz-lookup` (lightweight, offline coordinate-to-IANA timezone resolver, ~100KB).
+- **Timezone Source:** IANA identifiers come from the curated city data and are validated with Node's `Intl` API. No coordinate-to-timezone lookup or fixed offset is used at runtime.
 - **DST Handling:** Calculations and event generation rely on Node.js built-in `Intl` API or `luxon`/`date-fns-tz` with IANA timezone strings. By computing prayer times against the local calendar date and converting to UTC epoch timestamps via the IANA zone, all Daylight Saving Time (DST) changes (spring-forward / fall-back) are applied automatically and accurately without offset drifting (BR-042).
 
 ---
 
 ## 3. Scheduling & Event Reliability
+
+The M4.1 study of scheduling concepts, edge cases, and the proposed minimal design is in [`scheduling-design.md`](scheduling-design.md). The notes below are the library-level proposal; where they differ from the study, the study is the more detailed reference.
 
 ### Architecture of the Scheduler
 - **Mechanism:** In-process single-timer dynamic scheduler (`setTimeout`) combined with a periodic fallback heartbeat/sweep (e.g., every 15-30 minutes).
@@ -74,7 +75,7 @@ Status labels follow the [documentation conventions](../README.md#status-labels)
 - **Delivery Ledger:** A durable record stored in the database to prevent duplicate handling across crashes, restarts, and schedule rebuilds (BR-050).
 - **Event Unique Key:** `guildId:prayerDate:prayerName:eventType` (e.g., `"1234567890:2026-11-24:fajr:PRAYER_TIME_REACHED"`).
 - **Current implementation status:** the `delivery_ledger` table exists in `001_initial_schema.sql`, but no ledger store, service, or scheduler uses it yet.
-- **Commit Semantics (Proposed Decision for MVP):**
+- **Commit Semantics (Confirmed in M4.1):**
   - **Ledger Commit-Before-Dispatch:** When an event fires, the scheduler checks if the key already exists in the ledger. If present, it skips dispatch. If absent, it records the entry in the ledger *before* initiating the announcement dispatch.
   - *Trade-off Justification:* Discord operations (sending text messages, voice joins) are not idempotent. Committing before dispatch guarantees **at-most-once** delivery: a crash during dispatch will never result in duplicate announcements/pings spamming the Discord server upon restart.
 
@@ -155,6 +156,8 @@ Status labels follow the [documentation conventions](../README.md#status-labels)
 
 ## 6. Persistence
 
+Shared database infrastructure (`src/infrastructure/persistence/storage.ts` and the versioned migrations) stays in `infrastructure/persistence/`. Feature-specific SQLite adapters are owned by their modules and placed in their own concern folder: `src/modules/settings/settings-store/settings-store.ts` and `src/modules/scheduling/delivery-ledger-store/delivery-ledger-store.ts` are implemented. All adapters use the same SQLite database. Module folders follow the convention in [Code Structure](../architecture/code-structure.md#folder-convention-applies-to-every-module); store implementations follow its [store convention](../architecture/code-structure.md#store-convention-general-rule): explicit columns, parameterized queries, runtime row validation, and a private `toEntity()` mapper.
+
 ### Recommended Database: SQLite via `better-sqlite3`
 - **Status:** **Implemented** for settings persistence and schema migrations (M2).
 - **Rationale:**
@@ -192,13 +195,16 @@ Durable deduplication store preventing duplicate text and voice announcements:
 - `event_type` (TEXT, NOT NULL) — 'PRAYER_APPROACHING' or 'PRAYER_TIME_REACHED'
 - `delivered_at` (TEXT, NOT NULL) — ISO8601 timestamp
 
-**Current implementation status:** the table exists, but the ledger adapter, commit logic, and pruning are not implemented. *Ledger Pruning Strategy (Proposed):* an automatic lightweight cleanup executed at daily startup or midnight deleting ledger records older than 7 days.
+**Current implementation status:** the module-owned adapter, commit-before-dispatch logic, and pruning are implemented (M4.2). Pruning runs at scheduler startup and deletes ledger rows older than 7 days.
 
 ---
 
 ## 7. Validation, Dependency Injection & Error Handling
 
 ### Configuration Validation: `zod`
+
+**Input boundary convention:** `discord/` commands and flows validate and normalize raw user input (shape, trimming, casing, parsing) before calling a service; services receive canonical values and enforce business rules. See the [input boundary convention](../architecture/code-structure.md#input-boundary-convention-general-rule). Reference-data integrity checks are separate from request validation.
+
 - **Status:** **Implemented** (M1/M2)
 - **Rationale:**
   - Industry-standard TypeScript-first schema declaration and runtime validation library.
@@ -231,6 +237,8 @@ Durable deduplication store preventing duplicate text and voice announcements:
   - Subclasses: `NotFoundError`, `ValidationError`, `PermissionError`, `ConflictError`, `ConfigurationError`.
   - Discord command handlers catch `AppError` instances to return clear, actionable ephemeral responses without exposing internals.
 
+Feature areas define their own error meanings as constant instances in an area-owned `*.errors.ts` file (e.g. `src/modules/settings/settings.errors.ts`). Create one only when a throw site needs it, name it by meaning, and reuse the shared subclass that matches; several constants may share a subclass. See the [error convention](../architecture/code-structure.md#error-convention-general-rule).
+
 ### Logging Framework: `pino`
 - **Status:** **Implemented**
 - **Rationale:**
@@ -249,12 +257,12 @@ Durable deduplication store preventing duplicate text and voice announcements:
 
 | Subsystem | Recommendation | Classification | Key Trade-off / Note |
 | :--- | :--- | :--- | :--- |
-| **Prayer Calculation** | `adhan` library | **Proposed** | In-process astronomical calculations; zero network dependencies. Not installed yet. |
+| **Prayer Calculation** | `adhan` library | **Implemented** (M3) | In-process astronomical calculations; zero runtime network dependencies. |
 | **Default Calculation Method** | Egyptian General Authority of Survey | **Confirmed** (FR-003) | Standard for Egypt and Arab region. |
-| **Location & Geocoding** | Bundled static JSON major cities + OSM Nominatim fallback | **Proposed** | Offline reliability for 90%+ cases; rate-limited fallback. |
-| **Timezone & DST** | IANA timezone strings via Node `Intl` & `tz-lookup` | **Confirmed** (BR-040) | Immune to DST shifts and local server OS clock offsets. Current settings validation uses `Intl`; calculation is pending. |
-| **Scheduling Engine** | In-process dynamic `setTimeout` + periodic heartbeat | **Proposed** | Lightweight, rebuildable on restart; no Redis/job queue required. |
-| **Duplicate Prevention** | `delivery_ledger` SQLite table (commit-before-dispatch) | **Proposed** | Table exists; adapter and commit behavior are not implemented. |
+| **Location reference data** | Curated JSON countries/cities only | **Implemented** (M3 Location) | Deterministic and offline; unsupported selections are rejected. |
+| **Timezone & DST** | IANA timezone strings from curated data, validated via Node `Intl` | **Confirmed** (BR-040) | Immune to DST shifts and local server OS clock offsets. Current settings/location validation uses `Intl`; calculation is pending. |
+| **Scheduling Engine** | In-process dynamic `setTimeout` + periodic heartbeat | **Implemented** (M4) | Lightweight, rebuildable on restart; no Redis/job queue required. |
+| **Duplicate Prevention** | `delivery_ledger` SQLite table (commit-before-dispatch) | **Implemented** | Module-owned adapter and commit-before-dispatch are implemented; policy confirmed in M4.1. |
 | **Discord Library** | `discord.js` v14 | **Implemented** (gateway client) | Client and required intents exist; commands and voice integration are planned. |
 | **Administrator Auth** | `ManageGuild` or `Administrator` permission check | **Proposed** | Verified server-side on interaction before processing. |
 | **Voice Library** | `@discordjs/voice` | **Proposed** | Official Discord voice package; manages UDP and voice signaling. Not installed yet. |
@@ -272,15 +280,15 @@ Durable deduplication store preventing duplicate text and voice announcements:
 
 The following recommendations are **Proposed** and require explicit confirmation prior to implementation:
 
-1. **Adhan Library Adoption:** Approve `adhan` (or `@batoulapps/adhan`) as the prayer-calculation engine.
-2. **City Geocoding Strategy:** Approve the hybrid bundled major-city offline dataset + Nominatim fallback.
-3. **Delivery Ledger Commit Order:** Approve commit-before-dispatch (at-most-once semantics) prioritizing zero duplicate messages over potential lost announcements during unhandled process crashes.
+1. **Adhan Library Adoption:** Implemented. `adhan` is the prayer-calculation engine; no external prayer-time API is used at runtime.
+2. **City Geocoding Strategy:** Deferred. The current implementation is curated-data-only; any external geocoding fallback needs a separate decision.
+3. **Delivery Ledger Commit Order:** **Approved (M4.1).** Commit-before-dispatch gives at-most-once semantics, prioritizing zero duplicate messages over potential lost announcements during unhandled process crashes.
 4. **Discord Administrator Permission:** Approve `PermissionFlagsBits.ManageGuild` or `Administrator` as the requisite authorization check for configuration commands.
 5. **Voice Audio Format:** Approve pre-transcoded 48kHz Ogg Opus as the standard asset format for local prayer audio files.
 6. **Lead Time Constraint:** Approve restricting voice announcement lead time to an integer between 1 and 60 minutes (default 10 minutes).
-7. **Scheduler Implementation:** Approve a single in-process `setTimeout` timer with a rebuild-on-change policy rather than polling or a job queue.
+7. **Scheduler Implementation:** Implemented in M4.2 as a single in-process `setTimeout` timer with a rebuild-on-change policy and heartbeat; no polling or job queue.
 
-SQLite through `better-sqlite3`, `discord.js` v14, `tsyringe`, `zod`, `pino`, and the `AppError` hierarchy are no longer approval items: they are present in the current source tree (see section 8). Prayer calculation uses the Standard Asr rule application-wide; no per-guild variation is planned. A migration-copy deployment step still needs review before production builds.
+SQLite through `better-sqlite3`, `discord.js` v14, `tsyringe`, `zod`, `pino`, `adhan`, and the `AppError` hierarchy are no longer approval items: they are present in the current source tree (see section 8). Prayer calculation uses the Standard Asr rule application-wide; no per-guild variation is planned. A migration-copy deployment step still needs review before production builds.
 
 ## 10. Known Implementation Gaps
 
@@ -288,9 +296,6 @@ Recorded from the current source tree; these must be closed before the affected 
 
 | Gap | Impact | Related milestone |
 | --- | --- | --- |
-| No delivery-ledger store, service, or commit policy; only the table exists. | Duplicate protection cannot be tested or relied on. | M4 |
-| `SettingsService` imports concrete `SettingsStore` and `Logger` from infrastructure. | Violates the stated port-inversion rule and makes the service harder to test in isolation. | M2 cleanup |
-| `tsc` does not copy `.sql` migrations to `dist`. | `npm run build && npm start` cannot run migrations without a copy step. | M8 |
+| No reminder handler; the scheduler dispatches to a no-op callback. | Due events do not yet produce announcements. | M5 |
 | `unhandledRejection` is logged but does not terminate the process. | Process may continue in an unknown state, contrary to the documented target. | M8 |
-| No close/reopen persistence test. | Restart durability is designed but not verified by the suite. | M2/M8 |
 | No live Discord login verification recorded. | Connection code exists and unit tests pass, but gateway authentication is unverified. | M1/M8 |

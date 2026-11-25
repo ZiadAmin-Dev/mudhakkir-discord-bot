@@ -23,7 +23,7 @@ Related documents:
 | Constructor-based Dependency Injection | Confirmed | Inversion of Control using `tsyringe`. Components receive dependencies via constructor injection using centralized DI tokens (`TOKENS`). |
 | Centralized Composition Root | Confirmed | All dependencies (instances and singletons) are registered in a single composition root (`src/app/composition.ts`). |
 | Standardized Operational Error Handling | Confirmed | Errors extend `AppError` with operational classifications (`isOperational: boolean`), isolating expected domain errors from unexpected system faults. |
-| Separation of Shared vs Infrastructure | Confirmed | `shared/` contains technology-independent cross-cutting primitives (DI tokens and `AppError` today; a clock contract is planned); `infrastructure/` contains concrete technology adapters (SQLite, Pino logger; audio player planned). |
+| Separation of Shared vs Infrastructure | Confirmed | `shared/` contains technology-independent cross-cutting primitives (DI tokens, `AppError`, and the `Logger` contract today; a clock contract is planned); `infrastructure/` contains concrete technology adapters (SQLite, Pino logger; audio player planned). |
 | Local prayer-time calculation | Confirmed | Calculation is an in-process function, not a remote service call. |
 | Local audio assets | Confirmed | Playback reads project assets; no remote audio fetching is required. |
 | Persistent server configuration | Confirmed | Settings survive restart; persisted in SQLite (`better-sqlite3`). |
@@ -42,40 +42,43 @@ The current source tree is a foundation, not the complete design below:
 | --- | --- |
 | Process configuration | **Implemented.** Zod validates `DISCORD_TOKEN`, `CLIENT_ID`, `LOG_LEVEL`, and `NODE_ENV`. |
 | Logging and DI | **Implemented.** Pino logger and a `tsyringe` composition root exist. |
-| Persistence | **Implemented for settings.** SQLite, WAL mode, migrations, `guild_settings`, and a `delivery_ledger` table exist. The ledger adapter and commit policy do not. |
+| Persistence | **Implemented.** SQLite, WAL mode, migrations, `guild_settings`, and `delivery_ledger` exist. The settings and scheduling modules own their SQLite adapters; the ledger uses commit-before-dispatch and 7-day pruning. All modules use the same database. |
+| Location | **Implemented.** The module owns curated country/city JSON reference data and exposes a single service (`ILocationService`) that queries it and resolves locations. Only locations present in the JSON files can be resolved; unsupported selections are rejected. No database tables or migrations were added for this reference data. |
 | Discord | **Implemented for connection only.** The `discord.js` client uses the Guilds and GuildVoiceStates intents. Commands, registration, and authorization are not implemented. |
-| Prayer calculation, scheduling, announcements | **Not implemented.** These remain the target design in sections 5–7. |
-| Shutdown | **Partially implemented.** The Discord client is destroyed on `SIGINT`/`SIGTERM`; scheduler, voice, and database teardown arrive with their components. |
+| Prayer calculation | **Implemented.** The module uses `adhan` with all supported methods, Standard Asr, and IANA timezone formatting; unit and integration tests verify the flow from Location resolution. |
+| Scheduling | **Implemented.** One-timer scheduler with heartbeat, event builder, delivery ledger with commit-before-dispatch, restart recovery, and a fake-clock test suite. It currently dispatches to a no-op callback until M5 supplies the reminder handler. |
+| Announcements | **Not implemented.** These remain the target design in sections 5–7. |
+| Shutdown | **Partially implemented.** The scheduler is stopped first, then the Discord client is destroyed on `SIGINT`/`SIGTERM`; voice and database teardown arrive with their components. |
 
-`npx tsc --noEmit` passes and the current test suite reports 14 passing tests. The [implementation roadmap](../development/implementation-roadmap.md) tracks milestone status and known gaps.
+`npx tsc --noEmit` passes and the current test suite reports 49 passing tests. The [implementation roadmap](../development/implementation-roadmap.md) tracks milestone status and known gaps.
 
 ## 2. Layered Architecture & Module Map
 
 The architecture adopts a practical Clean Architecture-inspired separation of concerns:
 
-1. **Presentation Layer (`src/discord/`):** Discord bot gateway interaction, slash command parsing, user authorization, and interaction replies. Decoupled from core business rules and storage.
+1. **Presentation Layer (`src/discord/`):** Discord bot gateway interaction, slash command parsing, **input validation and normalization**, user authorization, and interaction replies. It acts as the controller boundary: services receive canonical data, not raw Discord input. Decoupled from core business rules and storage.
 2. **Application & Domain Layer (`src/modules/`):** Core business logic, domain models, validation, scheduling, and reminder orchestration. Encapsulated in cohesive modules exposing public entry points.
 3. **Infrastructure Layer (`src/infrastructure/`):** Concrete technical implementations and adapters for external systems (SQLite persistence and Pino logging today; Discord voice connection and audio playback are planned).
-4. **Shared Layer (`src/shared/`):** Pure, technology-independent cross-cutting primitives shared across layers (DI tokens, `AppError` hierarchy, clock interfaces).
+4. **Shared Layer (`src/shared/`):** Pure, technology-independent cross-cutting primitives shared across layers (DI tokens, `AppError` hierarchy, `Logger` contract, clock interfaces).
 5. **Composition Root (`src/app/`):** Process configuration, lifecycle (bootstrap and graceful shutdown), and dependency injection container initialization.
 
 | Module / Component | Layer | Responsibility | May depend on | Must not do |
 | --- | --- | --- | --- | --- |
 | **App / composition root** | Composition | Construct the process, register dependencies in DI container, run startup and shutdown, own lifecycle signals. | Every module and adapter | Contain business rules or Discord command behavior. |
-| **Discord integration** | Presentation | Receive interactions and gateway events; expose channel, permission, message, and voice operations; register commands. | Application command handlers and narrow module services | Calculate prayer times, decide eligibility policy, or persist settings directly. |
+| **Discord integration** | Presentation | Receive interactions and gateway events; validate and normalize input; authorize; expose channel, permission, message, and voice operations; register commands. | Application command handlers and narrow module services | Calculate prayer times, decide eligibility policy, apply business rules, or persist settings directly. |
 | **Settings** | Application/Domain | Own the server configuration model, validation orchestration, access, and the single write path for changes. | Location and prayer-time types/supported values; SettingsStore port; shared errors | Send announcements, connect to voice, or schedule timers. |
-| **Location** | Application/Domain | Resolve a city/country selection to coordinates and an IANA timezone; expose valid timezone handling. | Geocoding provider port; shared errors | Calculate prayer times or know about Discord channels. |
+| **Location** | Application/Domain | Resolve a city/country selection to coordinates and an IANA timezone; expose valid timezone handling and supported countries/cities. | Curated JSON reference data; the Settings `CalculationMethod` type (type-only); shared errors | Calculate prayer times, know about Discord channels, call an external geocoder, persist reference data in SQLite, or add a separate resolver layer for one service. |
 | **Prayer times** | Domain | Calculate the five prayer instants for a location, local date, and method, using the fixed Standard Asr rule. | Location value types only | Schedule events, send reminders, persist settings, or talk to Discord. |
 | **Scheduling** | Application | Build future prayer events, keep the next due event, rebuild after changes, and enforce per-occurrence deduplication. | Settings and prayer times; delivery ledger port; clock port; shared errors | Perform astronomical calculation or send announcements directly. |
 | **Reminder handler** | Application | Orchestrate the two delivery paths for a due event; isolate their failures. | Settings, text announcements, voice announcements; shared errors | Calculate prayer times, own timers, or let one path await the other. |
 | **Text announcements** | Application | Build the prayer message and send it to the configured channel with the configured mention target. | Settings snapshot type; message-sender port; shared errors | Touch voice, scheduler state, or deduplication state. |
 | **Voice announcements** | Application | Discover eligible channels, recheck each channel, and run the sequential join/play/disconnect cycle. | Settings snapshot type; channel-directory, voice-transport, audio-player, and clock ports; shared errors | Send text messages or mutate configuration. |
-| **Persistence (Stores)** | Infrastructure | Implement settings and delivery-ledger storage using SQLite, schema versioning, and atomic save behavior. | Database connection (`better-sqlite3`); shared DI tokens; shared errors | Contain product rules or import Discord presentation modules. |
+| **Feature-owned persistence adapters** | Application/Domain (adapter) | Implement settings and delivery-ledger storage inside their owning modules using the shared SQLite connection, schema versioning, and atomic save behavior. | Shared database connection (`better-sqlite3`) and migrations; module port types; shared DI tokens and errors | Contain product rules in the adapter or import Discord presentation modules. |
 | **Audio playback** | Infrastructure | Resolve a prayer's local audio asset and play it through a voice connection. | Local audio files; `@discordjs/voice` | Choose channels or manage the voice-cycle order. |
 | **Logging** | Infrastructure | Provide contextual, structured logging (`pino`). | Process output / stdout | Own business decisions. |
-| **Shared Primitives** | Shared | Technology-independent cross-cutting primitives (`TOKENS`, `AppError`, `Clock`). | Zero external technologies | Import infrastructure adapters or domain services. |
+| **Shared Primitives** | Shared | Technology-independent cross-cutting primitives (`TOKENS`, `AppError`, `Logger` contract, `Clock`). | Zero external technologies | Import infrastructure adapters or domain services. |
 
-**Boundary Principle:** A module exposes only its narrow public entry point (`index.ts`). Internal implementation details remain private to the module. Dependencies are inverted using interfaces/tokens: domain modules depend on abstractions or store ports, while infrastructure adapters implement those ports.
+**Boundary Principle:** A module exposes only its narrow public entry point (`index.ts`). Internal implementation details remain private to the module. Dependencies are inverted using interfaces/tokens: domain services depend on abstractions or store ports, while feature-owned adapters implement those ports. Each cohesive concern gets its own folder with an `index.ts` barrel — see the [folder convention in Code Structure](code-structure.md#folder-convention-applies-to-every-module); the settings module is the reference (`settings-service/`, `settings-store/`). A module that needs durable state keeps its SQLite adapter in that module (`modules/settings/settings-store/settings-store.ts` and `modules/scheduling/delivery-ledger-store/delivery-ledger-store.ts`). Only the database connection and migrations remain in `infrastructure/persistence/`, and all feature adapters share the **same SQLite database** — co-location of adapters is code ownership, not database separation. The composition root imports the adapter through the module entry point to wire it.
 
 ## 3. Dependency Direction & Inversion of Control
 
@@ -84,20 +87,22 @@ The allowed import direction is:
 ```text
 app (composition root)  →  resolves from DI container
 presentation (discord)  →  application/domain services (via constructor DI)
-modules (domain/app)    →  shared (TOKENS, AppError) + other module public entries
+modules (domain/app)    →  shared (TOKENS, AppError, Logger contract) + other module public entries
 infrastructure          →  implements ports / consumes shared tokens & errors
 ```
 
 Key rules:
 - **Presentation depends inward on Application/Domain:** Discord command handlers inject domain services (`SettingsService`, `PrayerTimesService`) via `tsyringe` constructors.
 - **Domain never depends on Infrastructure:** Business services depend on store interfaces or shared DI tokens, never directly on SQLite or Discord APIs.
+- **Input validation at the presentation boundary:** Discord commands and flows validate and normalize raw input (shape, trimming, casing, parsing) before calling a module service. Services receive canonical values and apply business rules only; they never accept raw Discord interactions or reformat presentation input. Reference-data integrity checks are separate and live in the owning module.
+- **Service-to-service, never service-to-database:** When a service needs data or behavior from another module, it calls that module's **service** through its public entry point. It must not call the other module's store/repository or query its tables. The called module exposes the needed operation as a service method; its persistence remains private to it. Only the composition root wires concrete stores.
 - **Shared is leaf-level:** `shared/` never imports from `modules/`, `infrastructure/`, or `discord/`.
-- **Infrastructure implements abstractions:** Storage adapters (`SettingsStore`) implement data operations, decorated with `@injectable()` and `@inject(TOKENS.Database)`.
+- **Adapters implement abstractions:** Feature-owned storage adapters (e.g. `SettingsStore` in the settings module) implement data operations using the shared connection from `infrastructure/persistence/storage.ts`, decorated with `@injectable()` and `@inject(TOKENS.Database)`. The composition root wires them; business services never construct them.
 
 Two qualifications apply:
 
 - The `app` composition root may import everything because it is the only place where concrete implementations are constructed.
-- Infrastructure may import the port types it implements. Domain modules depend on the port type, never on the concrete adapter.
+- Adapters may import the port types they implement and the shared database infrastructure. Domain services depend on the port type, never on a concrete adapter.
 
 The diagram below shows runtime collaboration, not every import. Dotted lines indicate wiring or callbacks. For readability it shows only the App's wiring of the Discord layer; the composition root also constructs and wires the core modules and infrastructure adapters.
 
@@ -105,7 +110,6 @@ The diagram below shows runtime collaboration, not every import. Dotted lines in
 flowchart TB
     subgraph External[External systems]
         DISCORD[Discord API and Gateway]
-        GEO[Geocoding provider<br/>Open]
         AUDIO[(Local audio assets)]
         DB[(SQLite<br/>better-sqlite3)]
     end
@@ -122,16 +126,18 @@ flowchart TB
 
         subgraph Core[Business modules]
             SET[Settings]
+            SETSTORE[Settings store adapter]
             LOC[Location]
             PRAY[Prayer times]
             SCH[Scheduling]
+            LEDGERSTORE[Ledger store adapter<br/>planned]
             REM[Reminder handler]
             TEXT[Text announcements]
             VOX[Voice announcements]
         end
 
         subgraph Infra[Infrastructure]
-            STORE[Persistence]
+            DBSTORAGE[Shared SQLite connection<br/>and migrations]
             PLAY[Audio playback]
             LOG[Logging]
             CLOCK[Clock]
@@ -142,9 +148,8 @@ flowchart TB
     DISCORD <--> CHAN
     DISCORD <--> MSG
     DISCORD <--> VOICE
-    GEO <--> LOC
     AUDIO <--> PLAY
-    DB <--> STORE
+    DB <--> DBSTORAGE
 
     INT --> SET
     INT --> PRAY
@@ -163,10 +168,15 @@ flowchart TB
     VOX --> VOICE
     VOX --> PLAY
 
-    SET --> STORE
-    SCH --> STORE
+    SET --> SETSTORE
+    SETSTORE --> DBSTORAGE
+    SCH --> LEDGERSTORE
+    LEDGERSTORE --> DBSTORAGE
     APP -. wires .-> INT
+    APP -. wires .-> SETSTORE
 ```
+
+Store adapters are owned by the modules that use them; the Infrastructure node above is only the shared SQLite connection and migrations, used by all adapters against the same database.
 
 Scheduling has no import of text or voice; it receives a due-event callback at composition time. This keeps timing independent of delivery and makes the scheduler testable with a fake callback.
 
@@ -186,9 +196,9 @@ Scheduling has no import of text or voice; it receives a due-event callback at c
 1. **Load process configuration.** Read the bot token and environment settings. The token is never logged.
 2. **Initialize logging.** Create the logger before any component that can fail.
 3. **Build the composition root.** Construct adapters and services without performing network or storage work. Current code opens SQLite and runs migrations here; Discord login happens later.
-4. **Load settings.** Validate the stored record. A missing or invalid configuration does not crash the process; automated announcements remain inactive and the error is logged (FR-086 is Proposed). Persistence and the settings store are implemented; loading settings during startup is not.
-5. **Connect to Discord and register commands.** Connecting even with an invalid configuration allows an administrator to repair it. Command registration scope is Open.
-6. **Rebuild schedules.** For each valid, enabled configuration, build future events, drop events whose trigger passed while the process was offline, and schedule the next one (FR-081, FR-082, BR-044, BR-045).
+4. **Load settings.** Validate stored records via `SettingsService.listSettings()`. Invalid/disabled configurations are excluded from schedules and logged.
+5. **Connect to Discord and register commands.** Connecting even with an invalid configuration allows an administrator to repair it. Command registration is planned for M7.
+6. **Rebuild schedules (implemented).** On `ClientReady`, the scheduler builds events for each valid, enabled guild, drops triggers passed while offline, excludes ledger keys, and arms the next timer (FR-081, FR-082, BR-044, BR-045).
 7. **Signal readiness.** The scheduler owns the next timer; no other module starts recurring timers.
 
 **Proposed failure behavior:** a failure to connect to Discord or open persistence is a startup failure and is retried or reported according to the operational design. A malformed individual setting does not prevent the process from starting if the bot can still accept commands to fix it.
@@ -229,13 +239,13 @@ sequenceDiagram
 
 ### 4.2 Shutdown
 
-**Current implemented behavior:** `SIGINT` and `SIGTERM` destroy the Discord client, log the result, and exit. A second signal forces exit. Scheduler cancellation, voice cleanup, and database close are not present yet.
+**Current implemented behavior:** `SIGINT` and `SIGTERM` stop the scheduler first, then destroy the Discord client, log the result, and exit. A second signal forces exit. Voice cleanup and database close are not present yet.
 
 **Target sequence:**
 
 1. Stop accepting new command work and stop the scheduler from dispatching new events.
 2. Cancel the next-event timer.
-3. Allow in-flight announcements a bounded grace period. The grace period and forced-stop behavior are **Open**.
+3. Allow in-flight announcements a bounded grace period. The grace period and forced-stop behavior remain **Open**; the scheduler itself refuses new dispatches immediately.
 4. Attempt to leave any active voice channel and close voice connections.
 5. Flush and close persistence.
 6. Flush logs and exit.
@@ -255,7 +265,7 @@ Gateway reconnection is an adapter concern. After reconnecting, the process must
 1. The Discord adapter receives an interaction.
 2. The command router identifies the command and rejects unknown or direct-message use where required.
 3. The authorization check confirms the invoking member may perform the operation. The exact Discord permission is **Open**.
-4. The command handler validates input shape, then delegates to a module service or an interaction flow.
+4. The command handler validates the input shape, normalizes it into canonical values (for example trimmed strings and uppercase country codes), then delegates to a module service or an interaction flow. Business rules stay in the service.
 5. A successful mutation goes through the **Settings** module. It validates the full proposed configuration, persists atomically, and notifies the scheduler so that schedule-affecting changes can rebuild future events.
 6. The adapter formats and sends the response. Response wording and visibility remain Open/Proposed as specified in the command documentation.
 
@@ -290,7 +300,7 @@ The scheduler rebuild must:
 
 ## 6. Prayer calculation, scheduling, and event handling
 
-**Implementation status: not started.** Sections 6.1–6.4 are the target design for M3 and M4.
+**Implementation status: M3 and M4 implemented.** Section 6.1 is the implemented prayer-times module; Sections 6.2–6.4 are implemented by the scheduling module as described in [`technical/scheduling-design.md`](../technical/scheduling-design.md). Section 7 (announcements) remains the target design for M5/M6.
 
 ### 6.1 Prayer calculation
 
@@ -310,9 +320,9 @@ Scheduling converts prayer instants into two events per prayer occurrence:
 | `PRAYER_APPROACHING` | Prayer instant minus lead time | Voice path |
 | `PRAYER_TIME_REACHED` | Prayer instant | Text path |
 
-**Proposed event identity:** `{ guildId, prayer, localDate, eventType }`. This identity is used for deduplication and logging. The `delivery_ledger` table exists with `event_key` as its primary key; the ledger adapter and commit behavior are not implemented.
+**Event identity (implemented):** `{ guildId, prayer, localDate, eventType }`, serialized as `guildId:localDate:prayer:eventType`. It is used for deduplication and logging. The module-owned ledger adapter commits this key before dispatch (Confirmed) and prunes rows older than 7 days; see [`technical/scheduling-design.md`](../technical/scheduling-design.md#8-restart-recovery-and-duplicate-execution-risks).
 
-**Proposed scheduling horizon:** the current local day and the next local day, refreshed after each due event and after any configuration change. This keeps the in-memory plan small. The exact horizon is Open.
+**Scheduling horizon (implemented):** the current local calendar day and the next local calendar day, refreshed after each due event and after any configuration change. Calendar-date arithmetic keeps 23/25-hour DST days safe.
 
 ### 6.3 Scheduling loop
 
@@ -336,7 +346,7 @@ The reminder handler loads the current settings snapshot and starts the appropri
 
 ## 7. Announcement paths
 
-**Implementation status: not started.** No text or voice service exists yet. The current database schema includes a `delivery_ledger` table, but no ledger adapter or dispatch code uses it. Sections 7.1–7.5 are the target design for M5 and M6.
+**Implementation status: not started.** No text or voice service exists yet. The `delivery_ledger` table now has an adapter and is used by the scheduler, but the scheduler's due-event callback is still a temporary no-op. Sections 7.1–7.5 are the target design for M5 and M6.
 
 ### 7.1 Independence invariant
 
@@ -417,16 +427,16 @@ State is divided into durable and rebuildable categories:
 | State | Durability | Owner | Current status |
 | --- | --- | --- | --- |
 | Server configuration and enabled/disabled state | Durable (Confirmed) | Settings | **Implemented** in SQLite `guild_settings`; validated on write and on read. |
-| Delivery ledger | **Proposed** durable | Scheduling | **Schema only.** The `delivery_ledger` table exists in `001_initial_schema.sql`; no store, service, or commit policy is implemented. |
-| Future event schedule | In-memory, rebuildable | Scheduling | Not implemented; arrives with M4. |
+| Delivery ledger | **Confirmed** durable | Scheduling | **Implemented.** Module-owned store adapter, commit-before-dispatch, and 7-day pruning; table is in `001_initial_schema.sql`. |
+| Future event schedule | In-memory, rebuildable | Scheduling | **Implemented.** Sorted event plan, one timer, heartbeat; rebuilt on startup and settings changes. |
 | Setup/settings interaction draft | In-memory, **Proposed** | Discord flows | Not implemented; whether drafts survive restart remains Open. |
 | Logs | stdout / pino-pretty in development | Logging | **Implemented.** Logs are not a source of business state. |
 
-**Implemented persistence details:** SQLite through `better-sqlite3`, stored at `data/mudhakkir.db`, with WAL mode, foreign keys, a `schema_migrations` table, and explicit SQL migrations. Settings writes are atomic upserts, and persisted rows are revalidated when loaded. Invalid persisted data raises an error rather than being silently replaced with defaults. Prayer calculation always uses the Standard Asr rule; no Asr variation is stored in settings.
+**Implemented persistence details:** SQLite through `better-sqlite3`, stored at `data/mudhakkir.db`, with WAL mode, foreign keys, a `schema_migrations` table, and explicit SQL migrations. The settings SQLite adapter lives in `modules/settings/`; `infrastructure/persistence/` owns only the shared connection and migrations, and all feature adapters use the same database. Settings writes are atomic upserts, and persisted rows are revalidated when loaded. Invalid persisted data raises an error rather than being silently replaced with defaults. Every feature store follows the [store convention](code-structure.md#store-convention-general-rule): explicit columns instead of `SELECT *`, parameterized queries, runtime validation of raw rows instead of type assertions, and a private `toEntity()` mapper for snake_case → camelCase conversion. Prayer calculation always uses the Standard Asr rule; no Asr variation is stored in settings.
 
 All records are keyed by guild ID even in the single-server release. **Proposed:** this is cheap now and avoids a data migration when multi-server support becomes **Future**.
 
-SQLite is the selected MVP storage technology. The delivery-ledger commit ordering remains **Open** and is discussed in [the technical design](../technical/technical-design.md#3-scheduling--event-reliability).
+SQLite is the selected MVP storage technology. The delivery-ledger commit ordering is **Confirmed** as commit-before-dispatch (at-most-once); the trade-off is discussed in [the technical design](../technical/technical-design.md#3-scheduling--event-reliability).
 
 ## 9. Logging and error handling
 
@@ -445,9 +455,11 @@ Common subclasses:
 - `PermissionError`: Bot or administrator lacks required Discord permissions.
 - `ConfigurationError`: Incomplete or invalid server settings.
 
+**Naming convention:** shared subclasses define the error *type*, code, and operational flag. Each area defines its own *meanings* as constant instances in an area-owned errors file (`modules/settings/settings.errors.ts`; the same `*.errors.ts` rule applies to future modules and to infrastructure areas that need named errors). Create a constant when a component actually needs to throw it, name it by what it means, and reuse the shared subclass that matches. Several constants can share one subclass because they represent different meanings; unused constants are not created in advance.
+
 ### 9.2 Contextual Structured Logging
 
-Logging is a cross-cutting adapter implemented via Pino (`src/infrastructure/logging/logger.ts`), injected via `TOKENS.Logger`. Log entries carry structured contextual bindings (guildId, channelId, prayerName, eventType, latency) rather than unstructured strings.
+The logger contract is shared (`src/shared/logging/logger.port.ts`); the cross-cutting adapter is implemented via Pino in `src/infrastructure/logging/pino-logger.ts` and injected via `TOKENS.Logger`. Log entries carry structured contextual bindings (guildId, channelId, prayerName, eventType, latency) rather than unstructured strings.
 
 Error boundaries:
 
@@ -474,7 +486,7 @@ No tokens, secrets, or sensitive message contents are logged. No error is silent
 
 The architecture is consistent with the documented constraints, but these points need resolution before or during implementation:
 
-1. **Exactly-once vs at-most-once.** Discord sends are not idempotent. The [technical design](../technical/technical-design.md#3-scheduling--event-reliability) proposes ledger commit-before-dispatch, which prioritizes no duplicates and may lose an announcement on a crash. The opposite ordering risks duplicates. It also means an occurrence could be recorded as handled even when the handler sends nothing because the configuration is invalid or disabled at that moment. The proposal still requires approval.
+1. **Exactly-once vs at-most-once — resolved.** Discord sends are not idempotent. Ledger commit-before-dispatch is now **Confirmed** (M4.1): it prioritizes no duplicates and may lose an announcement on a crash. An occurrence can therefore be recorded as handled even when the handler sends nothing because the configuration is invalid or disabled at that moment; this is logged with context. The full rationale is in [`technical/scheduling-design.md`](../technical/scheduling-design.md#8-restart-recovery-and-duplicate-execution-risks).
 2. **Scheduler and long voice cycles.** If a voice cycle is still running at prayer time, the text path must not wait. The scheduler must not serialize independent events behind a long delivery. Task tracking and shutdown behavior need a concrete design.
 3. **Overlapping voice cycles.** The per-guild lock enforces one connection, but the behavior when a second cycle is requested is Open. This affects `/test` and closely spaced prayers.
 4. **Configuration changes during delivery.** BR-053 leaves in-flight voice behavior Open. The architecture must define whether a running cycle finishes, stops, or ignores the change.
@@ -492,11 +504,11 @@ The architecture is consistent with the documented constraints, but these points
 
 The following should be investigated and recorded, likely as ADRs or technical designs:
 
-- Delivery-ledger commit ordering, failure handling, and retention.
-- Scheduler mechanism (single timer, polling, or another in-process approach) and the policy for late events.
+- Delivery-ledger commit ordering (**decided**: commit-before-dispatch), failure handling, and retention.
+- Scheduler mechanism (single timer, polling, or another in-process approach) and the policy for late events — proposals are recorded in [`technical/scheduling-design.md`](../technical/scheduling-design.md#10-edge-cases-and-trade-offs).
 - Concrete duplicate-prevention semantics and failure trade-offs.
 - Voice connection library and audio playback stack; `discord.js` v14 is already used for the gateway client.
-- Geocoding provider and the privacy-classification rule.
+- External geocoding provider (deferred; current Location module is curated-data-only) and the privacy-classification rule.
 - Stage channel, AFK channel, and no-eligible-channel behavior.
 - Handling of overlapping voice cycles and `/test` interaction with real cycles.
 - In-flight behavior for configuration changes, disabling, and shutdown.

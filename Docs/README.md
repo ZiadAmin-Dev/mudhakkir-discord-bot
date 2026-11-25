@@ -59,6 +59,7 @@ Nothing in the documentation should be read as a finalized product choice unless
 | [`architecture/system-architecture.md`](architecture/system-architecture.md) | Modular Monolith modules, dependencies, startup/shutdown, command and configuration flow, scheduling, announcement paths, persistence, logging, and architectural risks. |
 | [`architecture/code-structure.md`](architecture/code-structure.md) | Source tree, file responsibilities, module entry points, enforceable architecture rules, and the distinction between implemented and planned files. |
 | [`technical/technical-design.md`](technical/technical-design.md) | Practical technical decisions, library choices, scheduling engine, Discord integration, voice pipeline, persistence schema, validation, and logging for the MVP, with implementation status where code exists. |
+| [`technical/scheduling-design.md`](technical/scheduling-design.md) | M4.1 study of scheduler/timer/cron, one-shot events, event-driven design, `setTimeout` limits, DST, multi-guild scheduling, event lifecycle, restart recovery, and the proposed minimal M4.2 design. |
 | [`development/implementation-roadmap.md`](development/implementation-roadmap.md) | Practical 8-milestone implementation plan for the MVP, including the current implementation baseline, remaining milestones, and known gaps. |
 
 ## Current implementation status
@@ -66,10 +67,11 @@ Nothing in the documentation should be read as a finalized product choice unless
 The repository now contains a partial TypeScript implementation, not only documentation:
 
 - **M1 foundation implemented:** environment validation, Pino logging, dependency injection, Discord client creation, and graceful shutdown wiring.
-- **M2 foundation implemented:** SQLite connection and migrations, guild settings schema, settings store/service, and validation. `SettingsService` depends on abstractions (`ISettingsStore` port and shared `Logger` contract), and restart durability is verified by a close/reopen test.
-- **M3–M8 not started:** location, prayer calculation, scheduling, announcements, commands, and deployment hardening are still planned.
-- **Verification:** `npx tsc --noEmit` passes and the current test suite reports 14 passing tests.
-- **Known gap:** the delivery ledger exists only as a table; its adapter and commit policy are not implemented. See the [implementation roadmap](development/implementation-roadmap.md#current-implementation-status).
+- **M2 foundation implemented:** SQLite connection and migrations, guild settings schema, settings store/service, and validation. The settings store is owned by the settings module while the shared database connection and migrations stay in `infrastructure/persistence/`; all modules use the same SQLite database. `SettingsService` depends on abstractions (`ISettingsStore` port and shared `Logger` contract), and restart durability is verified by a close/reopen test.
+- **M3 implemented and verified:** Location and Prayer Times modules, with unit and integration tests covering the full flow, DST, high latitudes, and external references.
+- **M4 implemented and verified:** in-process scheduler with one timer and a heartbeat, event builder, delivery ledger with commit-before-dispatch, restart recovery, and 7-day pruning. M5–M8 are still planned.
+- **Verification:** `npx tsc --noEmit`, `npm run build`, and all 49 tests pass across nine test files.
+- **Known gap:** no text or voice announcement path exists yet; the scheduler currently dispatches to a no-op callback that M5 will replace. See the [implementation roadmap](development/implementation-roadmap.md#current-implementation-status).
 
 The [implementation roadmap](development/implementation-roadmap.md) is the authoritative summary of what exists, what is partial, and what remains.
 
@@ -84,7 +86,7 @@ No further product documents are currently planned. Open product questions are t
 - ADRs, including: Modular Monolith as the architectural style; local prayer-time calculation; sequential voice-channel processing; the delivery-ledger semantics; and the choice of geocoding provider once finalized. The SQLite persistence choice is already implemented but still lacks a recorded ADR.
 
 ### Technical
-Subsystem deep-dives or supplementary technical notes if needed beyond [`technical/technical-design.md`](technical/technical-design.md).
+Subsystem deep-dives or supplementary technical notes if needed beyond [`technical/technical-design.md`](technical/technical-design.md) and the completed [`scheduling-design.md`](technical/scheduling-design.md).
 
 ### Development
 - Local development setup and environment configuration.
