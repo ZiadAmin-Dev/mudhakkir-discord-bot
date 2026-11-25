@@ -16,19 +16,38 @@ import { createDiscordClient } from '../discord/client.js';
 import { DiscordMessageSender } from '../discord/discord-messages.js';
 import { DiscordVoiceDirectory } from '../discord/discord-channels.js';
 import { DiscordVoiceTransport } from '../discord/voice-transport.js';
+import { CommandAuthorization } from '../discord/authorization.js';
+import { CommandRouter, registerInteractionHandler } from '../discord/command-router.js';
+import type { ICommandHandler } from '../discord/commands/command-handler.js';
+import { SetupCommand } from '../discord/commands/setup.js';
+import { SettingsCommand } from '../discord/commands/settings.js';
+import { PrayerTimesCommand } from '../discord/commands/prayer-times.js';
+import { TestCommand } from '../discord/commands/test.js';
+import { EnableCommand } from '../discord/commands/enable.js';
+import { DisableCommand } from '../discord/commands/disable.js';
+import { SettingsFlow } from '../discord/flows/settings-flow.js';
+import { SetupFlow } from '../discord/flows/setup-flow.js';
 import { validateAudioAssets } from '../infrastructure/audio/index.js';
-import { SettingsService, SettingsStore } from '../modules/settings/index.js';
-import { LocationService } from '../modules/location/index.js';
-import { PrayerTimesService } from '../modules/prayer-times/index.js';
+import {
+  ISettingsService,
+  SettingsChangeCallback,
+  SettingsService,
+  SettingsStore
+} from '../modules/settings/index.js';
+import { ILocationService, LocationService } from '../modules/location/index.js';
+import { IPrayerTimesService, PrayerTimesService } from '../modules/prayer-times/index.js';
 import { SystemClock, Clock } from '../shared/clock.js';
 import {
   DeliveryLedger,
   DeliveryLedgerStore,
   DueEventCallback,
+  ISchedulingService,
   SchedulingService
 } from '../modules/scheduling/index.js';
 import {
   IReminderHandler,
+  ITextAnnouncementService,
+  IVoiceAnnouncementService,
   ReminderHandler,
   TextAnnouncementService,
   VoiceAnnouncementService,
@@ -55,6 +74,12 @@ export function initContainer(
   const isDev = config.NODE_ENV === 'development';
   const logger = createLogger(config.LOG_LEVEL, isDev);
   di.registerInstance<Logger>(TOKENS.Logger, logger);
+
+  // Settings writes rebuild the affected guild's schedule. Resolved lazily so
+  // registration order does not matter.
+  di.registerInstance<SettingsChangeCallback>(TOKENS.SettingsChangeCallback, (guildId) => {
+    di.resolve<ISchedulingService>(TOKENS.SchedulerService).rebuild(guildId);
+  });
 
   // 3. Local audio assets (warn only; announcements degrade gracefully)
   validateAudioAssets(logger);
@@ -97,6 +122,28 @@ export function initContainer(
   const dueEventCallback: DueEventCallback = (event) => reminderHandler.handle(event);
   di.registerInstance<DueEventCallback>(TOKENS.DueEventCallback, dueEventCallback);
   di.registerSingleton(TOKENS.SchedulerService, SchedulingService);
+
+  // 11. Discord presentation: authorization, command handlers, and the router.
+  di.registerSingleton(TOKENS.Authorization, CommandAuthorization);
+  const authorization = di.resolve<CommandAuthorization>(TOKENS.Authorization);
+  const settingsService = di.resolve<ISettingsService>(TOKENS.SettingsService);
+  const locationService = di.resolve<ILocationService>(TOKENS.LocationService);
+  const prayerTimesService = di.resolve<IPrayerTimesService>(TOKENS.PrayerTimesService);
+  const clock = di.resolve<Clock>(TOKENS.Clock);
+  const textService = di.resolve<ITextAnnouncementService>(TOKENS.TextAnnouncementService);
+  const voiceService = di.resolve<IVoiceAnnouncementService>(TOKENS.VoiceAnnouncementService);
+
+  const handlers: ICommandHandler[] = [
+    new SetupCommand(authorization, (interaction) => new SetupFlow(interaction, locationService, settingsService, logger)),
+    new SettingsCommand(authorization, (interaction) => new SettingsFlow(interaction, settingsService, logger)),
+    new PrayerTimesCommand(settingsService, prayerTimesService, clock, logger),
+    new EnableCommand(authorization, settingsService),
+    new DisableCommand(authorization, settingsService),
+    new TestCommand(authorization, settingsService, textService, voiceService)
+  ];
+  di.registerInstance<ICommandHandler[]>(TOKENS.CommandHandlers, handlers);
+  di.registerSingleton(TOKENS.CommandRouter, CommandRouter);
+  registerInteractionHandler(client, di.resolve<CommandRouter>(TOKENS.CommandRouter));
 
   return di;
 }

@@ -9,6 +9,8 @@ import { ISettingsStore } from '../settings-store/index.js';
 import { Logger } from '../../../shared/logging/logger.port.js';
 import { settingsNotFoundError } from '../settings.errors.js';
 
+export type SettingsChangeCallback = (guildId: string) => void;
+
 export interface ISettingsService {
   getSettings(guildId: string): GuildSettings | null;
   listSettings(): GuildSettings[];
@@ -22,7 +24,8 @@ export interface ISettingsService {
 export class SettingsService implements ISettingsService {
   constructor(
     @inject(TOKENS.SettingsStore) private readonly store: ISettingsStore,
-    @inject(TOKENS.Logger) private readonly logger?: Logger
+    @inject(TOKENS.Logger) private readonly logger?: Logger,
+    @inject(TOKENS.SettingsChangeCallback) private readonly onChange?: SettingsChangeCallback
   ) {}
 
   getSettings(guildId: string): GuildSettings | null {
@@ -41,6 +44,7 @@ export class SettingsService implements ISettingsService {
 
     this.store.save(settings);
     this.logger?.info({ guildId: settings.guildId }, 'Guild settings saved successfully');
+    this.onChange?.(settings.guildId);
     return settings;
   }
 
@@ -58,6 +62,7 @@ export class SettingsService implements ISettingsService {
 
     this.store.save(updated);
     this.logger?.info({ guildId }, 'Guild settings updated successfully');
+    this.onChange?.(guildId);
     return updated;
   }
 
@@ -69,6 +74,7 @@ export class SettingsService implements ISettingsService {
     const deleted = this.store.delete(guildId);
     if (deleted) {
       this.logger?.info({ guildId }, 'Guild settings deleted');
+      this.onChange?.(guildId);
     }
     return deleted;
   }

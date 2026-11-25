@@ -17,6 +17,7 @@ export const TOKENS = {
 
   // Services
   SettingsService: Symbol.for('SettingsService'),
+  SettingsChangeCallback: Symbol.for('SettingsChangeCallback'),
   PrayerTimesService: Symbol.for('PrayerTimesService'),
   DeliveryLedger: Symbol.for('DeliveryLedger'),
   SchedulerService: Symbol.for('SchedulerService'),
@@ -27,5 +28,10 @@ export const TOKENS = {
   VoiceAnnouncementService: Symbol.for('VoiceAnnouncementService'),
   VoiceCoordinator: Symbol.for('VoiceCoordinator'),
   VoiceChannelDirectory: Symbol.for('VoiceChannelDirectory'),
-  VoiceTransport: Symbol.for('VoiceTransport')
+  VoiceTransport: Symbol.for('VoiceTransport'),
+
+  // Discord presentation
+  CommandHandlers: Symbol.for('CommandHandlers'),
+  CommandRouter: Symbol.for('CommandRouter'),
+  Authorization: Symbol.for('Authorization')
 } as const;
