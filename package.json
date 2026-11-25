@@ -8,7 +8,8 @@
     "build": "tsc && node scripts/copy-migrations.mjs",
     "start": "node dist/index.js",
     "dev": "tsx watch src/index.ts",
-    "test": "node --import tsx --test test/**/*.test.ts"
+    "test": "node --import tsx --test test/**/*.test.ts",
+    "postinstall": "node scripts/clean-adhan-tsconfig.mjs"
   },
   "keywords": [
     "discord",
