@@ -6,10 +6,17 @@ raw 48kHz stereo s16le PCM, playable by @discordjs/voice without ffmpeg.
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { PrayerName } from '../../modules/prayer-times/index.js';
 import type { Logger } from '../../shared/logging/logger.port.js';
 
-export const AUDIO_DIRECTORY = path.resolve(process.cwd(), 'assets', 'audio');
+// Works from both src/ (tsx) and dist/ (compiled): ../../.. is the project root.
+export const AUDIO_DIRECTORY = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '../../..',
+  'assets',
+  'audio'
+);
 export const PRAYER_AUDIO_FILES: Record<PrayerName, string> = {
   fajr: 'fajr.pcm',
   dhuhr: 'dhuhr.pcm',

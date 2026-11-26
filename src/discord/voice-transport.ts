@@ -76,7 +76,12 @@ function playToCompletion(player: AudioPlayer, resource: AudioResource): Promise
 
     player.on(AudioPlayerStatus.Idle, onIdle);
     player.on('error', onError);
-    player.play(resource);
+    try {
+      player.play(resource);
+    } catch (error) {
+      cleanup();
+      reject(error);
+    }
   });
 }
 

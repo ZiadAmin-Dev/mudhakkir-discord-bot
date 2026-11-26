@@ -33,6 +33,22 @@ describe('App Configuration (Milestone 1)', () => {
     assert.equal(config.NODE_ENV, 'development');
   });
 
+  it('should treat a blank DEV_GUILD_ID as unset and trim a real value', () => {
+    const blank = loadConfig({
+      DISCORD_TOKEN: 'token_abc',
+      CLIENT_ID: 'client_xyz',
+      DEV_GUILD_ID: ''
+    } as unknown as NodeJS.ProcessEnv);
+    assert.equal(blank.DEV_GUILD_ID, undefined);
+
+    const set = loadConfig({
+      DISCORD_TOKEN: 'token_abc',
+      CLIENT_ID: 'client_xyz',
+      DEV_GUILD_ID: '  123456789  '
+    } as unknown as NodeJS.ProcessEnv);
+    assert.equal(set.DEV_GUILD_ID, '123456789');
+  });
+
   it('should throw an informative error when DISCORD_TOKEN is missing', () => {
     const invalidEnv = {
       CLIENT_ID: 'client_xyz'

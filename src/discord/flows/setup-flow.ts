@@ -43,13 +43,10 @@ export function paginate<T>(items: readonly T[], page: number): { items: T[]; pa
   };
 }
 
-type Step = 'country' | 'city' | 'channel' | 'mention' | 'role' | 'leadTime' | 'confirm';
-
 export class SetupFlow implements InteractionFlow {
   readonly name = 'setup' as const;
   readonly expiresAt: number;
 
-  private step: Step = 'country';
   private country: Country | null = null;
   private resolved: ResolvedLocation | null = null;
   private countryPage = 0;
@@ -284,7 +281,6 @@ export class SetupFlow implements InteractionFlow {
   }
 
   private async showCountryMenu(): Promise<void> {
-    this.step = 'country';
     const { items, page, pages } = paginate(this.locations.listCountries(), this.countryPage);
     const menu = new StringSelectMenuBuilder().setCustomId('setup:country').setPlaceholder('Choose a country');
     for (const country of items) {
@@ -297,7 +293,6 @@ export class SetupFlow implements InteractionFlow {
   }
 
   private async showCityMenu(): Promise<void> {
-    this.step = 'city';
     const cities = this.country ? this.locations.listCities(this.country.code) : [];
     const { items, page, pages } = paginate(cities, this.cityPage);
     const menu = new StringSelectMenuBuilder().setCustomId('setup:city').setPlaceholder('Choose a city');
@@ -330,7 +325,6 @@ export class SetupFlow implements InteractionFlow {
   }
 
   private async showChannelMenu(): Promise<void> {
-    this.step = 'channel';
     const menu = new ChannelSelectMenuBuilder()
       .setCustomId('setup:channel')
       .setPlaceholder('Choose the channel for prayer reminders')
@@ -342,7 +336,6 @@ export class SetupFlow implements InteractionFlow {
   }
 
   private async showMentionMenu(): Promise<void> {
-    this.step = 'mention';
     const menu = new StringSelectMenuBuilder().setCustomId('setup:mention').setPlaceholder('Choose a mention target');
     menu.addOptions(
       new StringSelectMenuOptionBuilder().setLabel('@everyone').setValue('everyone'),
@@ -356,7 +349,6 @@ export class SetupFlow implements InteractionFlow {
   }
 
   private async showRoleMenu(): Promise<void> {
-    this.step = 'role';
     const menu = new RoleSelectMenuBuilder().setCustomId('setup:role').setPlaceholder('Choose the role to mention');
     await this.initial.editReply({
       content: 'Step 4: choose the role that should be mentioned.',
@@ -365,7 +357,6 @@ export class SetupFlow implements InteractionFlow {
   }
 
   private async showLeadTimeStep(): Promise<void> {
-    this.step = 'leadTime';
     const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId('setup:leadTime-open').setLabel('Set lead time').setStyle(ButtonStyle.Primary)
     );
@@ -388,7 +379,6 @@ export class SetupFlow implements InteractionFlow {
   }
 
   private async showConfirm(): Promise<void> {
-    this.step = 'confirm';
     const mention = this.mentionType === 'role' ? `<@&${this.mentionRoleId}>` : '@everyone';
     const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId('setup:confirm').setLabel('Confirm').setStyle(ButtonStyle.Success),

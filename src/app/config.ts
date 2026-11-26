@@ -18,7 +18,11 @@ export const EnvSchema = z.object({
   NODE_ENV: z
     .enum(['development', 'production', 'test'])
     .default('development'),
-  DEV_GUILD_ID: z.string().min(1).optional()
+  // dotenv parses `DEV_GUILD_ID=` as an empty string; treat that as "unset".
+  DEV_GUILD_ID: z
+    .string()
+    .optional()
+    .transform((value) => (value?.trim() ? value.trim() : undefined))
 });
 
 export type AppConfig = z.infer<typeof EnvSchema>;

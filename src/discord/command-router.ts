@@ -32,7 +32,6 @@ type RespondableInteraction =
 
 interface ActiveFlow {
   flow: InteractionFlow;
-  guildId: string;
   userId: string;
   expiresAt: number;
 }
@@ -144,7 +143,6 @@ export class CommandRouter {
     }
     this.flows.set(key, {
       flow,
-      guildId,
       userId,
       expiresAt: flow.expiresAt
     });
