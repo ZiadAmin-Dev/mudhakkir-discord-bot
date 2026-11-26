@@ -187,7 +187,7 @@ Everything else in the tree is planned. In particular, the remaining M8 hardenin
 | `src/index.ts` | Process entry point. Loads `.env`, validates configuration, initializes DI, resolves the logger and Discord client, and starts `bootstrap`. |
 | `app/config.ts` | Reads and validates environment variables (`DISCORD_TOKEN`, `CLIENT_ID`, `LOG_LEVEL`, `NODE_ENV`) using Zod. Fails fast with clear error messages. |
 | `app/composition.ts` | Composition root: creates the logger, opens SQLite, runs migrations, creates the Discord client, registers stores/services, and exposes `initContainer`. |
-| `app/bootstrap.ts` | Startup sequence: installs signal handling, logs in to Discord, starts the scheduler on `ClientReady`, logs bot identity, and resolves. Command registration is planned. |
+| `app/bootstrap.ts` | Startup sequence: installs signal handling, logs in to Discord, starts the scheduler on `ClientReady`, registers slash commands (global or guild-scoped), logs bot identity, and resolves. |
 | `app/shutdown.ts` | Graceful shutdown handler: intercepts `SIGINT`/`SIGTERM`, stops the scheduler first, destroys the Discord client, and exits; a second signal forces exit. Voice/database teardown is planned. |
 
 ### Discord integration (Presentation Layer)
@@ -386,7 +386,7 @@ The exact lint or dependency-checking tool is **Open**. The rules must be enforc
 
 ## 6. Testing layout and dependency mocking
 
-**Current status:** the existing suite has 18 test files and reports 88 passing tests. `npx tsc --noEmit` passes. Tests use the Node.js built-in test runner (`node --test`) with TypeScript support via `tsx`.
+**Current status:** the existing suite has 18 test files and reports 89 passing tests. `npx tsc --noEmit` passes. Tests use the Node.js built-in test runner (`node --test`) with TypeScript support via `tsx`.
 
 ### Test directory layout:
 

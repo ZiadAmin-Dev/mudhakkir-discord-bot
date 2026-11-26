@@ -16,7 +16,7 @@ The repository contains a working M1/M2 foundation and an implemented M3 (Locati
 | **M2** | **Implemented and verified** | SQLite, WAL, migrations, `guild_settings`, `delivery_ledger` table, settings store/service, and Zod validation exist. `SettingsService` depends on an `ISettingsStore` port and a shared `Logger` contract, with `SettingsStore` as the settings module's SQLite adapter. A close/reopen persistence test verifies restart durability. |
 | **M3** | **Implemented and verified** | Location and Prayer Times modules exist, using `adhan` with all supported methods and Standard Asr. Unit and integration tests cover the full flow, DST, high latitudes, and external references. |
 | **M4** | **Implemented and verified** | The M4.1 study is in [`technical/scheduling-design.md`](../technical/scheduling-design.md); M4.2 implemented the clock port, event builder, single-timer scheduler with heartbeat, module-owned delivery-ledger adapter, commit-before-dispatch, restart recovery, and 7-day pruning. |
-| **M5** | **Text path implemented; M6/M7 items pending** | Reminder handler, text builder/service, and Discord sender deliver `PRAYER_TIME_REACHED` events with exact `@everyone`/role mentions. Voice path and `/test` command behavior remain planned. |
+| **M5** | **Implemented and verified** | Reminder handler, text builder/service, and Discord sender deliver `PRAYER_TIME_REACHED` events with exact `@everyone`/role mentions; `/test` reuses the same services safely. |
 | **M6** | **Implemented and verified (offline tests)** | `@discordjs/voice` transport, channel directory, eligibility rules, per-guild lock, sequential cycle, and local PCM assets. Live voice playback has not been verified on Discord. |
 | **M7** | **Implemented and verified (offline tests)** | Six slash commands, router with user/guild-bound flow registry, setup/settings flows, select menus with 25-option pagination, and a settings→scheduler rebuild callback. Live Discord interaction verification remains for M8. |
 | **M8** | **Not started** | No deployment descriptors, end-to-end suite, or completed crash boundaries. |
@@ -24,7 +24,7 @@ The repository contains a working M1/M2 foundation and an implemented M3 (Locati
 ### Verified now
 
 - `npx tsc --noEmit` passes.
-- `npm test` reports 88 passing tests across 18 files: configuration, DI/composition, Discord client intents, message sender, commands/flows/router, persistence/settings, location, prayer times, scheduling, text announcements, reminder handler, voice announcements, audio assets, and the Location → Prayer Times, Scheduling → Persistence, Scheduler → Text Delivery, and Settings → Scheduler Rebuild integration suites.
+- `npm test` reports 89 passing tests across 18 files: configuration, DI/composition, Discord client intents, message sender, commands/flows/router, persistence/settings, location, prayer times, scheduling, text announcements, reminder handler, voice announcements, audio assets, and the Location → Prayer Times, Scheduling → Persistence, Scheduler → Text Delivery, Settings → Scheduler Rebuild, and `/test` Isolation integration suites.
 - Migrations create `guild_settings`, `delivery_ledger`, and `schema_migrations`.
 - Settings can be saved, retrieved, partially updated, toggled, deleted, and reject invalid input.
 - Location resolves only countries/cities present in curated JSON, applies default-city and country-level calculation-method rules, and rejects unsupported selections. No external geocoding is used.
@@ -202,7 +202,7 @@ Implement the in-process dynamic scheduling engine and the durable delivery ledg
 ### Goal & Expected Outcome
 Implement the text reminder path that formats announcement messages and delivers them to the configured Discord text channel with strictly controlled mentions (`@everyone` or a specific role), fully isolated from voice delivery.
 
-### Status: text path implemented (M5); voice and `/test` planned for M6/M7
+### Status: text path implemented (M5); `/test` behaviour finalised in M7
 
 ### Main Modules & Files Involved
 - `src/modules/reminders/reminder-handler/reminder-handler.ts` — Implemented callback: fresh settings per event, routes reached events to text, ignores approaching events until M6.

@@ -50,7 +50,7 @@ The current source tree is a foundation, not the complete design below:
 | Announcements | **Text, voice, and `/test` implemented.** Due events deliver text with exact mentions; approaching events run a sequential voice cycle with a per-guild lock. Tests are labelled and do not ping. Live Discord playback remains unverified. |
 | Shutdown | **Partially implemented.** The scheduler is stopped first, then the Discord client is destroyed on `SIGINT`/`SIGTERM`; voice and database teardown arrive with their components. |
 
-`npx tsc --noEmit` passes and the current test suite reports 88 passing tests. The [implementation roadmap](../development/implementation-roadmap.md) tracks milestone status and known gaps.
+`npx tsc --noEmit` passes and the current test suite reports 89 passing tests. The [implementation roadmap](../development/implementation-roadmap.md) tracks milestone status and known gaps.
 
 ## 2. Layered Architecture & Module Map
 
@@ -130,7 +130,7 @@ flowchart TB
             LOC[Location]
             PRAY[Prayer times]
             SCH[Scheduling]
-            LEDGERSTORE[Ledger store adapter<br/>planned]
+            LEDGERSTORE[Ledger store adapter<br/>implemented]
             REM[Reminder handler]
             TEXT[Text announcements]
             VOX[Voice announcements]
@@ -197,7 +197,7 @@ Scheduling has no import of text or voice; it receives a due-event callback at c
 2. **Initialize logging.** Create the logger before any component that can fail.
 3. **Build the composition root.** Construct adapters and services without performing network or storage work. Current code opens SQLite and runs migrations here; Discord login happens later.
 4. **Load settings.** Validate stored records via `SettingsService.listSettings()`. Invalid/disabled configurations are excluded from schedules and logged.
-5. **Connect to Discord and register commands.** Connecting even with an invalid configuration allows an administrator to repair it. Command registration is planned for M7.
+5. **Connect to Discord and register commands.** Connecting even with an invalid configuration allows an administrator to repair it. Slash commands are registered globally or per guild via `DEV_GUILD_ID` (implemented in M7).
 6. **Rebuild schedules (implemented).** On `ClientReady`, the scheduler builds events for each valid, enabled guild, drops triggers passed while offline, excludes ledger keys, and arms the next timer (FR-081, FR-082, BR-044, BR-045).
 7. **Signal readiness.** The scheduler owns the next timer; no other module starts recurring timers.
 
@@ -467,7 +467,7 @@ State is divided into durable and rebuildable categories:
 | Server configuration and enabled/disabled state | Durable (Confirmed) | Settings | **Implemented** in SQLite `guild_settings`; validated on write and on read. |
 | Delivery ledger | **Confirmed** durable | Scheduling | **Implemented.** Module-owned store adapter, commit-before-dispatch, and 7-day pruning; table is in `001_initial_schema.sql`. |
 | Future event schedule | In-memory, rebuildable | Scheduling | **Implemented.** Sorted event plan, one timer, heartbeat; rebuilt on startup and settings changes. |
-| Setup/settings interaction draft | In-memory, **Proposed** | Discord flows | Not implemented; whether drafts survive restart remains Open. |
+| Setup/settings interaction draft | In-memory, **Implemented** | Discord flows | Held in the router's flow registry (guild/user-bound, 5-minute expiry); discarded on restart. Whether drafts should survive restart remains Open. |
 | Logs | stdout / pino-pretty in development | Logging | **Implemented.** Logs are not a source of business state. |
 
 **Implemented persistence details:** SQLite through `better-sqlite3`, stored at `data/mudhakkir.db`, with WAL mode, foreign keys, a `schema_migrations` table, and explicit SQL migrations. The settings SQLite adapter lives in `modules/settings/`; `infrastructure/persistence/` owns only the shared connection and migrations, and all feature adapters use the same database. Settings writes are atomic upserts, and persisted rows are revalidated when loaded. Invalid persisted data raises an error rather than being silently replaced with defaults. Every feature store follows the [store convention](code-structure.md#store-convention-general-rule): explicit columns instead of `SELECT *`, parameterized queries, runtime validation of raw rows instead of type assertions, and a private `toEntity()` mapper for snake_case → camelCase conversion. Prayer calculation always uses the Standard Asr rule; no Asr variation is stored in settings.
