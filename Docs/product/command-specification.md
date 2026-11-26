@@ -51,7 +51,7 @@ No slash-command options are required beyond invoking the command. Configuration
 
 Location owns all location business rules (country existence, city membership, required-city and default-city rules, final resolution). The Discord layer only validates the interaction and the selected option, then passes the canonical code/ID to Location; it does not duplicate reference data or location rules.
 
-Discord String Select Menus allow at most 25 options. Country and city menus must be paginated (for example, with Previous/Next buttons carrying the page index) when the list from Location exceeds 25 entries. Current curated data has 9 countries and at most 3 cities per country, so pagination is a forward-looking requirement. Other interaction components for the remaining steps remain an implementation detail.
+Discord String Select Menus allow at most 25 options. Country and city menus must be paginated (for example, with Previous/Next buttons carrying the page index) when the list from Location exceeds 25 entries. Current curated data has 46 countries and up to 9 cities in a single country, so country pagination is active while city pagination activates only beyond 25 entries. Other interaction components for the remaining steps remain an implementation detail.
 
 ### Expected output or interaction
 

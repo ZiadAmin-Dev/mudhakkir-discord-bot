@@ -24,10 +24,10 @@ The repository contains a working M1/M2 foundation and an implemented M3 (Locati
 ### Verified now
 
 - `npx tsc --noEmit` passes.
-- `npm test` reports 89 passing tests across 18 files: configuration, DI/composition, Discord client intents, message sender, commands/flows/router, persistence/settings, location, prayer times, scheduling, text announcements, reminder handler, voice announcements, audio assets, and the Location → Prayer Times, Scheduling → Persistence, Scheduler → Text Delivery, Settings → Scheduler Rebuild, and `/test` Isolation integration suites.
+- `npm test` reports 90 passing tests across 18 files: configuration, DI/composition, Discord client intents, message sender, commands/flows/router, persistence/settings, location, prayer times, scheduling, text announcements, reminder handler, voice announcements, audio assets, and the Location → Prayer Times, Scheduling → Persistence, Scheduler → Text Delivery, Settings → Scheduler Rebuild, and `/test` Isolation integration suites.
 - Migrations create `guild_settings`, `delivery_ledger`, and `schema_migrations`.
 - Settings can be saved, retrieved, partially updated, toggled, deleted, and reject invalid input.
-- Location resolves only countries/cities present in curated JSON, applies default-city and country-level calculation-method rules, and rejects unsupported selections. No external geocoding is used.
+- Location resolves only countries/cities present in curated JSON, applies default-city and country-level calculation-method rules, and rejects unsupported selections. No external geocoding is used. The curated set covers 46 countries and 134 cities (including Arabic and Muslim-majority regions), with a data-integrity test for codes, timezones, defaults, and city-method overrides.
 - Prayer Times calculates five daily prayers offline with `adhan`, maps all 12 supported `CalculationMethod` values, fixes Asr to Standard (`Madhab.Shafi`), and formats times with the configured IANA timezone (DST handled through `Intl`).
 - Integration tests verify the complete Location → Prayer Times flow, city overrides, DST dates, high-latitude behavior, and representative times against the aladhan.com reference API (2-minute tolerance).
 - `SettingsService` depends on abstractions (`ISettingsStore` port and shared `Logger` contract), not concrete infrastructure types.

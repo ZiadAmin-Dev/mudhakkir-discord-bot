@@ -50,7 +50,7 @@ The current source tree is a foundation, not the complete design below:
 | Announcements | **Text, voice, and `/test` implemented.** Due events deliver text with exact mentions; approaching events run a sequential voice cycle with a per-guild lock. Tests are labelled and do not ping. Live Discord playback remains unverified. |
 | Shutdown | **Partially implemented.** The scheduler is stopped first, then the Discord client is destroyed on `SIGINT`/`SIGTERM`; voice and database teardown arrive with their components. |
 
-`npx tsc --noEmit` passes and the current test suite reports 89 passing tests. The [implementation roadmap](../development/implementation-roadmap.md) tracks milestone status and known gaps.
+`npx tsc --noEmit` passes and the current test suite reports 90 passing tests. The [implementation roadmap](../development/implementation-roadmap.md) tracks milestone status and known gaps.
 
 ## 2. Layered Architecture & Module Map
 
@@ -334,7 +334,7 @@ The scheduler rebuild must:
 
 The Discord layer never duplicates country/city reference data and never normalizes typed country names, matches aliases or Arabic names, or performs fuzzy search for this flow. `findCountries()`/`findCities()` exist on the Location service for other read-only uses but are not used by setup. Discord may use Location's returned fields (`cityRequired`, `defaultCity`, resolved location) only to choose the next UI step.
 
-Discord String Select Menus allow at most 25 options. Both country and city menus must be paginated (for example with Previous/Next buttons carrying the page index) when a list exceeds 25 entries. The current curated data has 9 countries and at most 3 cities per country, so pagination is a forward-looking requirement, not a current need.
+Discord String Select Menus allow at most 25 options. Both country and city menus must be paginated (for example with Previous/Next buttons carrying the page index) when a list exceeds 25 entries. The curated data currently has 46 countries and up to 9 cities in a single country, so country pagination is active in `/setup`; city pagination activates if a country grows past 25 cities.
 
 ## 6. Prayer calculation, scheduling, and event handling
 
