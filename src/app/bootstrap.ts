@@ -22,7 +22,7 @@ export async function bootstrap(
     client.once(Events.ClientReady, async (readyClient) => {
       scheduler?.start();
       try {
-        await registerSlashCommands(config.CLIENT_ID, config.DISCORD_TOKEN, logger);
+        await registerSlashCommands(config.CLIENT_ID, config.DISCORD_TOKEN, logger, config.DEV_GUILD_ID);
       } catch (error) {
         logger.error({ err: error }, 'Slash command registration failed; existing commands remain');
       }

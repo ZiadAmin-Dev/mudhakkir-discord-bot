@@ -17,7 +17,8 @@ export const EnvSchema = z.object({
     .default('info'),
   NODE_ENV: z
     .enum(['development', 'production', 'test'])
-    .default('development')
+    .default('development'),
+  DEV_GUILD_ID: z.string().min(1).optional()
 });
 
 export type AppConfig = z.infer<typeof EnvSchema>;

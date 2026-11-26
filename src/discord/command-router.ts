@@ -9,11 +9,13 @@ import { inject, injectable } from 'tsyringe';
 import { TOKENS } from '../shared/di/tokens.js';
 import {
   ButtonInteraction,
+  ChannelSelectMenuInteraction,
   ChatInputCommandInteraction,
   Client,
   Events,
   Interaction,
   ModalSubmitInteraction,
+  RoleSelectMenuInteraction,
   StringSelectMenuInteraction
 } from 'discord.js';
 import { CommandAuthorization } from './authorization.js';
@@ -24,6 +26,8 @@ type RespondableInteraction =
   | ChatInputCommandInteraction
   | ButtonInteraction
   | StringSelectMenuInteraction
+  | ChannelSelectMenuInteraction
+  | RoleSelectMenuInteraction
   | ModalSubmitInteraction;
 
 interface ActiveFlow {
@@ -88,6 +92,8 @@ export class CommandRouter {
       interaction.isChatInputCommand() ||
       interaction.isButton() ||
       interaction.isStringSelectMenu() ||
+      interaction.isChannelSelectMenu() ||
+      interaction.isRoleSelectMenu() ||
       interaction.isModalSubmit()
     );
   }

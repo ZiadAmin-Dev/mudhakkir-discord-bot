@@ -45,7 +45,7 @@ const settings: GuildSettings = {
 interface FakeInteraction {
   interaction: never;
   replies: Array<{ content?: string; ephemeral?: boolean }>;
-  edits: Array<{ content?: string }>;
+  edits: Array<{ content?: string; components?: unknown[] }>;
   modals: unknown[];
 }
 
@@ -60,7 +60,7 @@ function makeInteraction(options: {
   optionValues?: Record<string, string>;
 } = {}): FakeInteraction {
   const replies: Array<{ content?: string; ephemeral?: boolean }> = [];
-  const edits: Array<{ content?: string }> = [];
+  const edits: Array<{ content?: string; components?: unknown[] }> = [];
   const modals: unknown[] = [];
   const state = { deferred: false, replied: false };
   const permissions = new Set<bigint>(
@@ -92,7 +92,7 @@ function makeInteraction(options: {
     deferUpdate: async () => {
       state.deferred = true;
     },
-    editReply: async (payload: { content?: string }) => {
+    editReply: async (payload: { content?: string; components?: unknown[] }) => {
       edits.push(payload);
     },
     showModal: async (modal: unknown) => {
@@ -248,47 +248,76 @@ describe('M7 — setup flow', () => {
     assert.equal(first.pages, 2);
   });
 
-  it('uses canonical country codes and saves resolved coordinates with enabled=false', async () => {
+  it('uses canonical country codes, native channel picker, and the Location method', async () => {
     const locations = new LocationService();
     const settingsService = new FakeSettingsService();
     const start = makeInteraction();
     const flow = new SetupFlow(start.interaction, locations, settingsService);
 
     await flow.start();
-    const country = makeInteraction({ commandName: undefined, customId: 'setup:country', values: ['EG'] });
-    await flow.handle(country.interaction);
+    await flow.handle(makeInteraction({ commandName: undefined, customId: 'setup:country', values: ['EG'] }).interaction);
     assert.match(String(start.edits[0]?.content), /country/i);
 
-    const open = makeInteraction({ commandName: undefined, customId: 'setup:details-open' });
-    await flow.handle(open.interaction);
-    assert.equal(open.modals.length, 1);
+    await flow.handle(makeInteraction({ commandName: undefined, customId: 'setup:city-default' }).interaction);
+    assert.match(String(start.edits.at(-1)?.content), /text channel/i);
 
-    const details = makeInteraction({
-      commandName: undefined,
-      customId: 'setup:details',
-      fields: { channel: 'channel-1', mention: 'everyone', role: '', leadTime: '15', method: 'Egyptian' }
-    });
-    await flow.handle(details.interaction);
+    await flow.handle(makeInteraction({ commandName: undefined, customId: 'setup:channel', values: ['channel-1'] }).interaction);
+    assert.match(String(start.edits.at(-1)?.content), /mention target/i);
 
-    const confirm = makeInteraction({ commandName: undefined, customId: 'setup:confirm' });
-    await flow.handle(confirm.interaction);
+    await flow.handle(makeInteraction({ commandName: undefined, customId: 'setup:mention', values: ['skip'] }).interaction);
+    await flow.handle(makeInteraction({ commandName: undefined, customId: 'setup:leadTime-open' }).interaction);
+    await flow.handle(
+      makeInteraction({ commandName: undefined, customId: 'setup:leadTime', fields: { minutes: '15' } }).interaction
+    );
+    await flow.handle(makeInteraction({ commandName: undefined, customId: 'setup:confirm' }).interaction);
 
     assert.equal(settingsService.saved.length, 1);
     assert.equal(settingsService.saved[0].countryName, 'Egypt');
     assert.equal(settingsService.saved[0].cityName, 'Cairo');
     assert.equal(settingsService.saved[0].latitude, 30.0444);
+    assert.equal(settingsService.saved[0].calculationMethod, 'Egyptian');
+    assert.equal(settingsService.saved[0].textChannelId, 'channel-1');
+    assert.equal(settingsService.saved[0].mentionType, 'everyone');
+    assert.equal(settingsService.saved[0].mentionRoleId, null);
     assert.equal(settingsService.saved[0].enabled, false);
     assert.equal(settingsService.saved[0].voiceLeadTimeMinutes, 15);
   });
 
-  it('shows a city menu when Location reports cityRequired', async () => {
-    const locations = new LocationService();
+  it('filters cities by the chosen country and requires a city for cityRequired countries', async () => {
     const start = makeInteraction();
-    const flow = new SetupFlow(start.interaction, locations, new FakeSettingsService());
+    const flow = new SetupFlow(start.interaction, new LocationService(), new FakeSettingsService());
     await flow.start();
-    const country = makeInteraction({ commandName: undefined, customId: 'setup:country', values: ['US'] });
-    await flow.handle(country.interaction);
-    assert.match(String(start.edits.at(-1)?.content), /city is required/i);
+    await flow.handle(makeInteraction({ commandName: undefined, customId: 'setup:country', values: ['US'] }).interaction);
+
+    const cityMenu = start.edits.at(-1);
+    const json = JSON.stringify(cityMenu?.components);
+    assert.match(String(cityMenu?.content), /needs a city/i);
+    assert.match(json, /new-york/);
+    assert.equal(json.includes('cairo'), false);
+    assert.equal(json.includes('setup:city-default'), false);
+
+    await flow.handle(makeInteraction({ commandName: undefined, customId: 'setup:city', values: ['new-york'] }).interaction);
+    assert.match(String(start.edits.at(-1)?.content), /text channel/i);
+  });
+
+  it('uses the role picker when a role mention is chosen', async () => {
+    const settingsService = new FakeSettingsService();
+    const start = makeInteraction();
+    const flow = new SetupFlow(start.interaction, new LocationService(), settingsService);
+    await flow.start();
+    await flow.handle(makeInteraction({ commandName: undefined, customId: 'setup:country', values: ['EG'] }).interaction);
+    await flow.handle(makeInteraction({ commandName: undefined, customId: 'setup:city-default' }).interaction);
+    await flow.handle(makeInteraction({ commandName: undefined, customId: 'setup:channel', values: ['channel-1'] }).interaction);
+    await flow.handle(makeInteraction({ commandName: undefined, customId: 'setup:mention', values: ['role'] }).interaction);
+    await flow.handle(makeInteraction({ commandName: undefined, customId: 'setup:role', values: ['555555555555555555'] }).interaction);
+    await flow.handle(makeInteraction({ commandName: undefined, customId: 'setup:leadTime-open' }).interaction);
+    await flow.handle(
+      makeInteraction({ commandName: undefined, customId: 'setup:leadTime', fields: { minutes: '10' } }).interaction
+    );
+    await flow.handle(makeInteraction({ commandName: undefined, customId: 'setup:confirm' }).interaction);
+
+    assert.equal(settingsService.saved[0].mentionType, 'role');
+    assert.equal(settingsService.saved[0].mentionRoleId, '555555555555555555');
   });
 });
 

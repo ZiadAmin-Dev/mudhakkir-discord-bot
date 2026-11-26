@@ -1,32 +1,32 @@
 /*
 Guided /setup flow.
 Explain: Country and city come from Location select menus carrying canonical
-codes/IDs. Location owns all location rules; this flow only validates the
-interaction and the selected option, then maps the resolved location into
-settings. No country text input or fuzzy matching.
+codes/IDs. Location owns all location rules. The text channel and mention role
+come from Discord's native pickers, so users never copy IDs. The calculation
+method is always the one resolved by Location; it is not user-selectable.
 */
 
 import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
+  ChannelSelectMenuBuilder,
+  ChannelType,
   ModalBuilder,
+  RoleSelectMenuBuilder,
   StringSelectMenuBuilder,
   StringSelectMenuOptionBuilder,
   TextInputBuilder,
   TextInputStyle,
   type ButtonInteraction,
+  type ChannelSelectMenuInteraction,
   type ChatInputCommandInteraction,
   type ModalSubmitInteraction,
+  type RoleSelectMenuInteraction,
   type StringSelectMenuInteraction
 } from 'discord.js';
-import { ILocationService, ResolvedLocation, cityRequiredError } from '../../modules/location/index.js';
-import {
-  CalculationMethod,
-  CreateGuildSettingsInput,
-  ISettingsService,
-  MentionType
-} from '../../modules/settings/index.js';
+import { Country, ILocationService, ResolvedLocation } from '../../modules/location/index.js';
+import { CreateGuildSettingsInput, ISettingsService, MentionType } from '../../modules/settings/index.js';
 import type { Logger } from '../../shared/logging/logger.port.js';
 import type { ComponentInteraction, InteractionFlow } from '../commands/command-handler.js';
 
@@ -43,21 +43,20 @@ export function paginate<T>(items: readonly T[], page: number): { items: T[]; pa
   };
 }
 
-type Step = 'country' | 'city' | 'details' | 'confirm';
+type Step = 'country' | 'city' | 'channel' | 'mention' | 'role' | 'leadTime' | 'confirm';
 
 export class SetupFlow implements InteractionFlow {
   readonly name = 'setup' as const;
   readonly expiresAt: number;
 
   private step: Step = 'country';
-  private countryCode: string | null = null;
+  private country: Country | null = null;
   private resolved: ResolvedLocation | null = null;
   private countryPage = 0;
   private cityPage = 0;
-  private method: CalculationMethod = 'Egyptian';
+  private channelId = '';
   private mentionType: MentionType = 'everyone';
   private mentionRoleId: string | null = null;
-  private channelId = '';
   private leadTime = 10;
   private includePrivateVoice = false;
   private lastCustomId: string | null = null;
@@ -84,12 +83,11 @@ export class SetupFlow implements InteractionFlow {
 
     const customId = interaction.customId;
     // Discord requires showModal to be the first response to an interaction.
-    if (customId === 'setup:details-open') {
-      await (interaction as ButtonInteraction).showModal(this.detailsModal());
+    if (customId === 'setup:leadTime-open') {
+      await (interaction as ButtonInteraction).showModal(this.leadTimeModal());
       return;
     }
     await interaction.deferUpdate();
-    // A repeated submission of the same step is acknowledged but not applied twice.
     if (customId === this.lastCustomId) {
       return;
     }
@@ -114,8 +112,20 @@ export class SetupFlow implements InteractionFlow {
       case 'setup:city':
         await this.handleCity(interaction as StringSelectMenuInteraction);
         return;
-      case 'setup:details':
-        await this.handleDetails(interaction as ModalSubmitInteraction);
+      case 'setup:city-default':
+        await this.handleDefaultCity();
+        return;
+      case 'setup:channel':
+        await this.handleChannel(interaction as ChannelSelectMenuInteraction);
+        return;
+      case 'setup:mention':
+        await this.handleMentionChoice(interaction as StringSelectMenuInteraction);
+        return;
+      case 'setup:role':
+        await this.handleRole(interaction as RoleSelectMenuInteraction);
+        return;
+      case 'setup:leadTime':
+        await this.handleLeadTime(interaction as ModalSubmitInteraction);
         return;
       case 'setup:private':
         this.includePrivateVoice = !this.includePrivateVoice;
@@ -129,7 +139,10 @@ export class SetupFlow implements InteractionFlow {
         await this.initial.editReply({ content: 'Setup cancelled. No changes were saved.', components: [] });
         return;
       default:
-        await this.initial.editReply({ content: 'That interaction is no longer valid. Run `/setup` again.', components: [] });
+        await this.initial.editReply({
+          content: 'That interaction is no longer valid. Run `/setup` again.',
+          components: []
+        });
     }
   }
 
@@ -137,55 +150,53 @@ export class SetupFlow implements InteractionFlow {
     const code = interaction.values[0];
     const country = this.locations.getCountry(code);
     if (!country || !this.locations.listCountries().some((item) => item.code === code)) {
-      await this.initial.editReply({ content: 'Unknown country selection. Choose an option from the menu.', components: [] });
+      await this.invalidSelection('country');
       return;
     }
 
-    this.countryCode = country.code;
-    try {
-      const resolved = await this.locations.resolve({ countryCode: country.code });
-      this.resolved = resolved;
-      this.method = resolved.calculationMethod;
-      await this.showDetails();
-    } catch (error) {
-      if (error === cityRequiredError) {
-        await this.showCityMenu();
-        return;
-      }
-      this.logger?.error({ guildId: this.initial.guildId, err: error }, 'Location resolution failed during setup');
-      await this.initial.editReply({ content: 'The selected country could not be resolved. Try again.', components: [] });
-    }
+    this.country = country;
+    this.cityPage = 0;
+    await this.showCityMenu();
   }
 
   private async handleCity(interaction: StringSelectMenuInteraction): Promise<void> {
-    if (!this.countryCode) {
+    if (!this.country) {
       await this.initial.editReply({ content: 'Select a country first.', components: [] });
       return;
     }
 
     const city = interaction.values[0];
-    if (!this.locations.listCities(this.countryCode).some((item) => item.id === city || item.name === city)) {
-      await this.initial.editReply({ content: 'Unknown city selection. Choose an option from the menu.', components: [] });
+    if (!this.locations.listCities(this.country.code).some((item) => item.id === city || item.name === city)) {
+      await this.invalidSelection('city');
       return;
     }
 
+    await this.resolveLocation({ countryCode: this.country.code, city });
+  }
+
+  private async handleDefaultCity(): Promise<void> {
+    if (!this.country) {
+      await this.initial.editReply({ content: 'Select a country first.', components: [] });
+      return;
+    }
+    await this.resolveLocation({ countryCode: this.country.code });
+  }
+
+  private async resolveLocation(input: { countryCode: string; city?: string }): Promise<void> {
     try {
-      this.resolved = await this.locations.resolve({ countryCode: this.countryCode, city });
-      this.method = this.resolved.calculationMethod;
-      await this.showDetails();
+      this.resolved = await this.locations.resolve(input);
+      await this.showChannelMenu();
     } catch (error) {
-      this.logger?.error({ guildId: this.initial.guildId, err: error }, 'City resolution failed during setup');
-      await this.initial.editReply({ content: 'The selected city could not be resolved. Try again.', components: [] });
+      this.logger?.error({ guildId: this.initial.guildId, err: error }, 'Location resolution failed during setup');
+      await this.initial.editReply({
+        content: 'That location could not be resolved. Choose another option.',
+        components: []
+      });
     }
   }
 
-  private async handleDetails(interaction: ModalSubmitInteraction): Promise<void> {
-    const channelId = interaction.fields.getTextInputValue('channel').trim();
-    const mentionType = interaction.fields.getTextInputValue('mention').trim().toLowerCase();
-    const roleId = interaction.fields.getTextInputValue('role').trim() || null;
-    const leadTime = Number(interaction.fields.getTextInputValue('leadTime'));
-    const method = interaction.fields.getTextInputValue('method').trim() as CalculationMethod;
-
+  private async handleChannel(interaction: ChannelSelectMenuInteraction): Promise<void> {
+    const channelId = interaction.values[0];
     if (this.initial.guild) {
       try {
         const channel = await this.initial.guild.channels.fetch(channelId);
@@ -198,30 +209,40 @@ export class SetupFlow implements InteractionFlow {
         return;
       }
     }
-
-    if (mentionType !== 'everyone' && mentionType !== 'role') {
-      await this.initial.editReply({ content: 'Mention type must be "everyone" or "role".', components: [] });
-      return;
-    }
-    if (mentionType === 'role' && !roleId) {
-      await this.initial.editReply({ content: 'A role ID is required when mention type is "role".', components: [] });
-      return;
-    }
-    if (!Number.isInteger(leadTime) || leadTime < 1 || leadTime > 60) {
-      await this.initial.editReply({ content: 'Lead time must be a whole number between 1 and 60 minutes.', components: [] });
-      return;
-    }
-
     this.channelId = channelId;
-    this.mentionType = mentionType;
-    this.mentionRoleId = mentionType === 'role' ? roleId : null;
-    this.leadTime = leadTime;
-    this.method = method;
+    await this.showMentionMenu();
+  }
+
+  private async handleMentionChoice(interaction: StringSelectMenuInteraction): Promise<void> {
+    const choice = interaction.values[0];
+    if (choice === 'role') {
+      await this.showRoleMenu();
+      return;
+    }
+    // 'everyone' and 'skip' both mean the default @everyone target.
+    this.mentionType = 'everyone';
+    this.mentionRoleId = null;
+    await this.showLeadTimeStep();
+  }
+
+  private async handleRole(interaction: RoleSelectMenuInteraction): Promise<void> {
+    this.mentionType = 'role';
+    this.mentionRoleId = interaction.values[0] ?? null;
+    await this.showLeadTimeStep();
+  }
+
+  private async handleLeadTime(interaction: ModalSubmitInteraction): Promise<void> {
+    const minutes = Number(interaction.fields.getTextInputValue('minutes'));
+    if (!Number.isInteger(minutes) || minutes < 1 || minutes > 60) {
+      await this.initial.editReply({ content: 'Lead time must be a whole number between 1 and 60.', components: [] });
+      return;
+    }
+    this.leadTime = minutes;
     await this.showConfirm();
   }
 
   private async confirm(): Promise<void> {
-    if (!this.resolved || !this.initial.guildId) {
+    if (!this.resolved || !this.initial.guildId || !this.channelId) {
       await this.initial.editReply({ content: 'Setup is incomplete. Run `/setup` again.', components: [] });
       return;
     }
@@ -234,7 +255,7 @@ export class SetupFlow implements InteractionFlow {
       latitude: this.resolved.latitude,
       longitude: this.resolved.longitude,
       timezone: this.resolved.timezone,
-      calculationMethod: this.method,
+      calculationMethod: this.resolved.calculationMethod,
       textChannelId: this.channelId,
       mentionType: this.mentionType,
       mentionRoleId: this.mentionRoleId,
@@ -255,12 +276,17 @@ export class SetupFlow implements InteractionFlow {
     }
   }
 
+  private async invalidSelection(kind: 'country' | 'city'): Promise<void> {
+    await this.initial.editReply({
+      content: `Unknown ${kind} selection. Choose an option from the menu.`,
+      components: []
+    });
+  }
+
   private async showCountryMenu(): Promise<void> {
     this.step = 'country';
     const { items, page, pages } = paginate(this.locations.listCountries(), this.countryPage);
-    const menu = new StringSelectMenuBuilder()
-      .setCustomId('setup:country')
-      .setPlaceholder('Choose a country');
+    const menu = new StringSelectMenuBuilder().setCustomId('setup:country').setPlaceholder('Choose a country');
     for (const country of items) {
       menu.addOptions(new StringSelectMenuOptionBuilder().setLabel(country.name).setValue(country.code));
     }
@@ -272,43 +298,90 @@ export class SetupFlow implements InteractionFlow {
 
   private async showCityMenu(): Promise<void> {
     this.step = 'city';
-    const cities = this.countryCode ? this.locations.listCities(this.countryCode) : [];
+    const cities = this.country ? this.locations.listCities(this.country.code) : [];
     const { items, page, pages } = paginate(cities, this.cityPage);
     const menu = new StringSelectMenuBuilder().setCustomId('setup:city').setPlaceholder('Choose a city');
     for (const city of items) {
       menu.addOptions(new StringSelectMenuOptionBuilder().setLabel(city.name).setValue(city.id));
     }
+
+    const rows: ActionRowBuilder<ButtonBuilder | StringSelectMenuBuilder>[] = [
+      new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu)
+    ];
+    // Countries with a default city make city selection optional.
+    if (this.country && !this.country.cityRequired) {
+      rows.push(
+        new ActionRowBuilder<ButtonBuilder>().addComponents(
+          new ButtonBuilder().setCustomId('setup:city-default').setLabel('Use default city').setStyle(ButtonStyle.Secondary)
+        )
+      );
+    }
+    const nav = this.pageButtons('city', page, pages);
+    if (nav) {
+      rows.push(nav);
+    }
+
     await this.initial.editReply({
-      content: 'Step 2: a city is required. Choose one.',
-      components: this.rows([new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu)], 'city', page, pages)
+      content: this.country?.cityRequired
+        ? `Step 2: ${this.country.name} needs a city. Choose one.`
+        : `Step 2: choose a city in ${this.country?.name ?? 'this country'}, or use its default city.`,
+      components: rows
     });
   }
 
-  private async showDetails(): Promise<void> {
-    this.step = 'details';
-    const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId('setup:details-open').setLabel('Enter details').setStyle(ButtonStyle.Primary)
-    );
-    await this.initial.editReply({ content: 'Step 3: fill in the remaining details.', components: [row] });
+  private async showChannelMenu(): Promise<void> {
+    this.step = 'channel';
+    const menu = new ChannelSelectMenuBuilder()
+      .setCustomId('setup:channel')
+      .setPlaceholder('Choose the channel for prayer reminders')
+      .setChannelTypes(ChannelType.GuildText);
+    await this.initial.editReply({
+      content: 'Step 3: choose the text channel that will receive prayer reminders.',
+      components: [new ActionRowBuilder<ChannelSelectMenuBuilder>().addComponents(menu)]
+    });
   }
 
-  private detailsModal(): ModalBuilder {
-    const modal = new ModalBuilder().setCustomId('setup:details').setTitle('Prayer reminder details');
+  private async showMentionMenu(): Promise<void> {
+    this.step = 'mention';
+    const menu = new StringSelectMenuBuilder().setCustomId('setup:mention').setPlaceholder('Choose a mention target');
+    menu.addOptions(
+      new StringSelectMenuOptionBuilder().setLabel('@everyone').setValue('everyone'),
+      new StringSelectMenuOptionBuilder().setLabel('A role').setValue('role'),
+      new StringSelectMenuOptionBuilder().setLabel('Skip (use @everyone)').setValue('skip')
+    );
+    await this.initial.editReply({
+      content: 'Step 4: choose a mention target, or skip to use @everyone.',
+      components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu)]
+    });
+  }
+
+  private async showRoleMenu(): Promise<void> {
+    this.step = 'role';
+    const menu = new RoleSelectMenuBuilder().setCustomId('setup:role').setPlaceholder('Choose the role to mention');
+    await this.initial.editReply({
+      content: 'Step 4: choose the role that should be mentioned.',
+      components: [new ActionRowBuilder<RoleSelectMenuBuilder>().addComponents(menu)]
+    });
+  }
+
+  private async showLeadTimeStep(): Promise<void> {
+    this.step = 'leadTime';
+    const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId('setup:leadTime-open').setLabel('Set lead time').setStyle(ButtonStyle.Primary)
+    );
+    await this.initial.editReply({ content: 'Step 5: set the voice reminder lead time.', components: [row] });
+  }
+
+  private leadTimeModal(): ModalBuilder {
+    const modal = new ModalBuilder().setCustomId('setup:leadTime').setTitle('Voice lead time');
     modal.addComponents(
       new ActionRowBuilder<TextInputBuilder>().addComponents(
-        new TextInputBuilder().setCustomId('channel').setLabel('Text channel ID').setStyle(TextInputStyle.Short).setRequired(true)
-      ),
-      new ActionRowBuilder<TextInputBuilder>().addComponents(
-        new TextInputBuilder().setCustomId('mention').setLabel('Mention: everyone or role').setStyle(TextInputStyle.Short).setValue('everyone').setRequired(true)
-      ),
-      new ActionRowBuilder<TextInputBuilder>().addComponents(
-        new TextInputBuilder().setCustomId('role').setLabel('Role ID (only for role)').setStyle(TextInputStyle.Short).setRequired(false)
-      ),
-      new ActionRowBuilder<TextInputBuilder>().addComponents(
-        new TextInputBuilder().setCustomId('leadTime').setLabel('Voice lead time (1-60)').setStyle(TextInputStyle.Short).setValue('10').setRequired(true)
-      ),
-      new ActionRowBuilder<TextInputBuilder>().addComponents(
-        new TextInputBuilder().setCustomId('method').setLabel('Calculation method').setStyle(TextInputStyle.Short).setValue(this.method).setRequired(true)
+        new TextInputBuilder()
+          .setCustomId('minutes')
+          .setLabel('Minutes (1-60)')
+          .setStyle(TextInputStyle.Short)
+          .setValue('10')
+          .setRequired(true)
       )
     );
     return modal;
@@ -316,13 +389,21 @@ export class SetupFlow implements InteractionFlow {
 
   private async showConfirm(): Promise<void> {
     this.step = 'confirm';
+    const mention = this.mentionType === 'role' ? `<@&${this.mentionRoleId}>` : '@everyone';
     const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId('setup:confirm').setLabel('Confirm').setStyle(ButtonStyle.Success),
-      new ButtonBuilder().setCustomId('setup:private').setLabel(`Private voice: ${this.includePrivateVoice ? 'yes' : 'no'}`).setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
+        .setCustomId('setup:private')
+        .setLabel(`Private voice: ${this.includePrivateVoice ? 'yes' : 'no'}`)
+        .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder().setCustomId('setup:cancel').setLabel('Cancel').setStyle(ButtonStyle.Danger)
     );
     await this.initial.editReply({
-      content: `Review: ${this.resolved?.cityName ?? '?'}, ${this.resolved?.countryName ?? '?'} — ${this.resolved?.timezone ?? '?'}; channel ${this.channelId}; ${this.mentionType}; lead ${this.leadTime} min; method ${this.method}. Announcements stay disabled until /enable.`,
+      content:
+        `Review: ${this.resolved?.cityName ?? '?'}, ${this.resolved?.countryName ?? '?'} — ` +
+        `${this.resolved?.timezone ?? '?'}; channel <#${this.channelId}>; ${mention}; ` +
+        `lead ${this.leadTime} min; method ${this.resolved?.calculationMethod ?? '?'}. ` +
+        'Announcements stay disabled until /enable.',
       components: [row]
     });
   }
@@ -334,20 +415,28 @@ export class SetupFlow implements InteractionFlow {
     pages: number
   ): ActionRowBuilder<ButtonBuilder | StringSelectMenuBuilder>[] {
     const rows: ActionRowBuilder<ButtonBuilder | StringSelectMenuBuilder>[] = [...main];
-    if (pages > 1) {
-      const nav = new ActionRowBuilder<ButtonBuilder>();
-      if (page > 0) {
-        nav.addComponents(
-          new ButtonBuilder().setCustomId(`setup:page:${kind}:${page - 1}`).setLabel('Previous').setStyle(ButtonStyle.Secondary)
-        );
-      }
-      if (page < pages - 1) {
-        nav.addComponents(
-          new ButtonBuilder().setCustomId(`setup:page:${kind}:${page + 1}`).setLabel('Next').setStyle(ButtonStyle.Secondary)
-        );
-      }
+    const nav = this.pageButtons(kind, page, pages);
+    if (nav) {
       rows.push(nav);
     }
     return rows;
+  }
+
+  private pageButtons(kind: 'country' | 'city', page: number, pages: number): ActionRowBuilder<ButtonBuilder> | null {
+    if (pages <= 1) {
+      return null;
+    }
+    const nav = new ActionRowBuilder<ButtonBuilder>();
+    if (page > 0) {
+      nav.addComponents(
+        new ButtonBuilder().setCustomId(`setup:page:${kind}:${page - 1}`).setLabel('Previous').setStyle(ButtonStyle.Secondary)
+      );
+    }
+    if (page < pages - 1) {
+      nav.addComponents(
+        new ButtonBuilder().setCustomId(`setup:page:${kind}:${page + 1}`).setLabel('Next').setStyle(ButtonStyle.Secondary)
+      );
+    }
+    return nav;
   }
 }

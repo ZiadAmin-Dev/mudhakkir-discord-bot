@@ -6,12 +6,19 @@ state; the router owns which flow is active for a guild/user pair.
 
 import type {
   ButtonInteraction,
+  ChannelSelectMenuInteraction,
   ChatInputCommandInteraction,
   ModalSubmitInteraction,
+  RoleSelectMenuInteraction,
   StringSelectMenuInteraction
 } from 'discord.js';
 
-export type ComponentInteraction = ButtonInteraction | StringSelectMenuInteraction | ModalSubmitInteraction;
+export type ComponentInteraction =
+  | ButtonInteraction
+  | StringSelectMenuInteraction
+  | ChannelSelectMenuInteraction
+  | RoleSelectMenuInteraction
+  | ModalSubmitInteraction;
 
 export interface InteractionFlow {
   readonly name: 'setup' | 'settings';

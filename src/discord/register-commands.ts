@@ -65,10 +65,14 @@ export function buildSlashCommands() {
   return [setup, prayerTimes, settings, test, enable, disable];
 }
 
-export async function registerSlashCommands(clientId: string, token: string, logger?: Logger): Promise<void> {
+export async function registerSlashCommands(
+  clientId: string,
+  token: string,
+  logger?: Logger,
+  guildId?: string
+): Promise<void> {
   const rest = new REST({ version: '10' }).setToken(token);
-  await rest.put(Routes.applicationCommands(clientId), {
-    body: buildSlashCommands().map((command) => command.toJSON())
-  });
-  logger?.info('Slash commands registered');
+  const route = guildId ? Routes.applicationGuildCommands(clientId, guildId) : Routes.applicationCommands(clientId);
+  await rest.put(route, { body: buildSlashCommands().map((command) => command.toJSON()) });
+  logger?.info({ scope: guildId ? 'guild' : 'global', guildId }, 'Slash commands registered');
 }
