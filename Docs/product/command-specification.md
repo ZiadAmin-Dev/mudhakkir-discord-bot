@@ -230,15 +230,15 @@ An authorized server administrator (BR-063). The exact permission is Open.
 - **Target channel (Open):** whether voice tests use the full eligibility cycle, a single selected voice channel, or the administrator's current channel.
 - **Text destination (Open):** whether text tests go to the configured reminder channel or to the channel where the command was used.
 
-The final option set is not decided. A test must be distinguishable from a real reminder in its output and logs.
+The final option set is not decided. Tests are distinguishable: output is prefixed with `[TEST]` and delivery logs include an `isTest` flag.
 
 ### Expected output or interaction
 
 - An immediate acknowledgment that the test has started.
 - Results reported per path and per channel, including failures and their causes. Report output is ephemeral by default (Proposed).
-- A test announcement may be visible to server members if it is played or sent through the real channels. The specification does not promise that tests are private to the administrator.
-- A text test uses the configured mention target, `@everyone` or the selected role. It must not silently use `@everyone` when the configuration selects a role.
-- A completed test does not mark the real event as delivered and does not alter enable/disable state (BR-051).
+- A test announcement is visible to server members when sent to the configured channel or played in a voice channel. It is not private to the administrator.
+- A text test shows the configured mention target in the `[TEST]` message but **suppresses all mentions** (`allowedMentions: { parse: [], roles: [] }`), so nobody is pinged. It still does not silently switch to `@everyone` when a role is configured.
+- A completed test does not mark the real event as delivered, write the delivery ledger, rebuild the schedule, or alter enable/disable state (BR-051). Voice tests are allowed even while automation is disabled.
 
 ### Validation requirements
 
@@ -257,17 +257,14 @@ The final option set is not decided. A test must be distinguishable from a real 
 | Audio file is missing or invalid | Report the audio problem; do not crash; continue a text test if one was requested. |
 | Text channel is missing, inaccessible, or the configured mention target cannot be used | Report the failure; do not bypass permissions. Missing `Mention Everyone` affects both `@everyone` and role targets. |
 | Discord API or playback failure | Report the failure per channel or path; do not crash or alter real scheduling. |
-| Test is run while a real announcement is in progress | Behavior is Open: queue, reject, or run independently. |
-| Test is run while announcements are disabled | **Proposed:** allow it, since testing should not require enabling automation. Open. |
+| Test is run while a real announcement is in progress | The shared per-guild voice lock allows one cycle at a time; the second cycle is skipped, not queued. Text delivery is unaffected. |
+| Test is run while announcements are disabled | Allowed for both text and voice; testing does not require enabling automation. |
 
 ### Open decisions
 
 - Exact inputs and defaults for type and prayer.
 - Whether a voice test uses all eligible channels, one selected channel, or the invoker's channel.
-- Whether a text test sends a real mention using the configured target or a preview without a ping.
-- Whether tests are allowed while announcements are disabled.
-- Whether tests can run during a real announcement cycle and how they are serialized.
-- Whether test messages are marked as tests and with what wording.
+- Whether to add a separate voice lock for tests instead of sharing the real cycle lock.
 
 ## `/enable`
 

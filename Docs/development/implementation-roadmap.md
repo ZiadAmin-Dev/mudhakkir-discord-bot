@@ -24,7 +24,7 @@ The repository contains a working M1/M2 foundation and an implemented M3 (Locati
 ### Verified now
 
 - `npx tsc --noEmit` passes.
-- `npm test` reports 85 passing tests across 17 files: configuration, DI/composition, Discord client intents, message sender, commands/flows/router, persistence/settings, location, prayer times, scheduling, text announcements, reminder handler, voice announcements, audio assets, and the Location → Prayer Times, Scheduling → Persistence, Scheduler → Text Delivery, and Settings → Scheduler Rebuild integration suites.
+- `npm test` reports 88 passing tests across 18 files: configuration, DI/composition, Discord client intents, message sender, commands/flows/router, persistence/settings, location, prayer times, scheduling, text announcements, reminder handler, voice announcements, audio assets, and the Location → Prayer Times, Scheduling → Persistence, Scheduler → Text Delivery, and Settings → Scheduler Rebuild integration suites.
 - Migrations create `guild_settings`, `delivery_ledger`, and `schema_migrations`.
 - Settings can be saved, retrieved, partially updated, toggled, deleted, and reject invalid input.
 - Location resolves only countries/cities present in curated JSON, applies default-city and country-level calculation-method rules, and rejects unsupported selections. No external geocoding is used.
@@ -296,7 +296,8 @@ Implement Discord slash commands and user interactions: administrator authorizat
 - [x] Component interactions route to the correct user- and guild-bound active flow; expired, cancelled, wrong-user, and duplicate submissions are contained with an ephemeral notice and no state change.
 - [x] Interactions are acknowledged via reply/defer; configuration flows are ephemeral, `/prayer-times` is public by default (Proposed), and unexpected errors are logged with context without exposing stack traces or database details.
 - [x] `/setup` guides an administrator through location, text channel, mention preference, lead time, and private-channel choice, persisting a valid configuration with `enabled: false` only on final confirmation.
-- [x] `/test` executes voice and/or text announcements on demand without consuming or altering upcoming scheduled prayer events or delivery-ledger records (BR-051).
+- [x] `/test` executes voice and/or text announcements on demand without consuming or altering upcoming scheduled prayer events or delivery-ledger records (BR-051). Output is labelled `[TEST]` with all mentions suppressed; voice tests work while automation is disabled.
+- [x] An integration test against real SQLite proves `/test` leaves the delivery ledger, scheduler plan, and settings record unchanged.
 - [x] `/disable` suspends automated reminders; `/enable` activates them; both notify the scheduler through the settings change callback (BR-047, BR-048).
 - [ ] Live Discord interaction, component, and command-registration verification remain for M8 end-to-end testing.
 

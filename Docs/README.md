@@ -73,7 +73,7 @@ The repository now contains a partial TypeScript implementation, not only docume
 - **M5 text path implemented and verified:** the scheduler's callback loads fresh settings and delivers announcements with exact `@everyone`/role mentions.
 - **M6 voice path implemented and verified offline:** eligibility rules, per-guild lock, sequential join/play/disconnect, and local PCM audio assets.
 - **M7 command layer implemented and verified offline:** six slash commands, router-owned user/guild-bound flows, canonical select-menu setup with 25-option pagination, and a settings→scheduler rebuild callback.
-- **Verification:** `npx tsc --noEmit`, `npm run build`, and all 85 tests pass across 17 test files.
+- **Verification:** `npx tsc --noEmit`, `npm run build`, and all 88 tests pass across 18 test files.
 - **Known gap:** live Discord interaction/playback verification is pending (M8); audio assets are placeholder tones. See the [implementation roadmap](development/implementation-roadmap.md#current-implementation-status).
 
 The [implementation roadmap](development/implementation-roadmap.md) is the authoritative summary of what exists, what is partial, and what remains.

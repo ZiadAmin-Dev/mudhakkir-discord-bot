@@ -47,10 +47,10 @@ The current source tree is a foundation, not the complete design below:
 | Discord | **Implemented for connection and text delivery.** The `discord.js` client uses the Guilds and GuildVoiceStates intents; the message-sender adapter resolves channels, checks permissions, and applies exact `allowedMentions`. Commands, registration, and authorization are not implemented. |
 | Prayer calculation | **Implemented.** The module uses `adhan` with all supported methods, Standard Asr, and IANA timezone formatting; unit and integration tests verify the flow from Location resolution. |
 | Scheduling | **Implemented.** One-timer scheduler with heartbeat, event builder, delivery ledger with commit-before-dispatch, restart recovery, and a fake-clock test suite. Its callback is the reminder handler. |
-| Announcements | **Text and voice implemented.** Due events deliver text with exact mentions; approaching events run a sequential voice cycle with a per-guild lock. Live Discord playback and `/test` remain unverified/planned. |
+| Announcements | **Text, voice, and `/test` implemented.** Due events deliver text with exact mentions; approaching events run a sequential voice cycle with a per-guild lock. Tests are labelled and do not ping. Live Discord playback remains unverified. |
 | Shutdown | **Partially implemented.** The scheduler is stopped first, then the Discord client is destroyed on `SIGINT`/`SIGTERM`; voice and database teardown arrive with their components. |
 
-`npx tsc --noEmit` passes and the current test suite reports 85 passing tests. The [implementation roadmap](../development/implementation-roadmap.md) tracks milestone status and known gaps.
+`npx tsc --noEmit` passes and the current test suite reports 88 passing tests. The [implementation roadmap](../development/implementation-roadmap.md) tracks milestone status and known gaps.
 
 ## 2. Layered Architecture & Module Map
 
@@ -293,7 +293,7 @@ The `discord/` folder is the presentation and transport boundary. Discord-specif
 - **Flow ownership (Proposed):** `command-router.ts` owns an in-memory registry keyed by `guildId:userId`. A command handler creates a flow and registers it; component interactions carry a custom-ID prefix that identifies the target flow. Flows are bound to the invoking user **and** guild using interaction context, so another user cannot continue or modify them.
 - **Expiry, cancellation, invalid state:** flows expire after a bounded idle time; cancel, expiry, unknown flow, wrong user/guild, or out-of-order step produce an ephemeral "interaction expired / unavailable" response and no state change. A restart discards all flows; whether drafts should survive restart remains **Open**.
 - **Duplicate component submissions:** a second submission for the same step is acknowledged but ignored, or re-rendered as the current step; it must not apply the same change twice.
-- **`/test`:** reuses text and voice services with a test flag, writes no delivery-ledger entries, and never suppresses or modifies a real scheduled event (BR-051).
+- **`/test`:** reuses text and voice services with `isTest: true`. Output is prefixed `[TEST]`, all mentions are suppressed so nobody is pinged, and voice tests work while automation is disabled. It writes no ledger entries, does not rebuild the schedule, and never suppresses or modifies a real scheduled event (BR-051). A voice test shares the per-guild lock, so a test and a real cycle cannot overlap; the second one is skipped.
 
 ### 5.2 Command-to-module mapping
 
@@ -302,7 +302,7 @@ The `discord/` folder is the presentation and transport boundary. Discord-specif
 | `/setup` | Settings, Location, Prayer times | Guided flow; final confirmation writes once. |
 | `/prayer-times` | Prayer times, Settings | Read-only; uses the configured location and timezone. |
 | `/settings` | Settings, Location, Prayer times | Partial updates are validated as a whole before save. |
-| `/test` | Reminder handler, Text, Voice | Uses the same delivery services without consuming the real event. |
+| `/test` | Text, Voice | Uses the same delivery services directly, with `isTest: true` and suppressed mentions; no scheduler or ledger access. |
 | `/enable` | Settings, Scheduling | Requires valid configuration; rebuilds future events. |
 | `/disable` | Settings, Scheduling | Persists disabled state; future events are not dispatched. |
 
@@ -338,7 +338,7 @@ Discord String Select Menus allow at most 25 options. Both country and city menu
 
 ## 6. Prayer calculation, scheduling, and event handling
 
-**Implementation status: M3 and M4 implemented.** Section 6.1 is the implemented prayer-times module; Sections 6.2–6.4 are implemented by the scheduling module as described in [`technical/scheduling-design.md`](../technical/scheduling-design.md). Section 7.2 (text) is implemented in M5 and Sections 7.3–7.4 (voice) in M6; `/test` (7.5) remains target design for M7.
+**Implementation status: M3 and M4 implemented.** Section 6.1 is the implemented prayer-times module; Sections 6.2–6.4 are implemented by the scheduling module as described in [`technical/scheduling-design.md`](../technical/scheduling-design.md). Section 7.2 (text) is implemented in M5, Sections 7.3–7.4 (voice) in M6, and Section 7.5 (`/test`) in M7.
 
 ### 6.1 Prayer calculation
 
@@ -384,7 +384,7 @@ The reminder handler loads the current settings snapshot and starts the appropri
 
 ## 7. Announcement paths
 
-**Implementation status: text and voice paths implemented.** Section 7.2 is implemented by `TextAnnouncementService`, `buildTextAnnouncement`, and `DiscordMessageSender`; Sections 7.3–7.4 by `VoiceAnnouncementService`, `runVoiceCycle`, `VoiceCoordinator`, `DiscordVoiceDirectory`, and `DiscordVoiceTransport`. Live voice playback and Section 7.5 (`/test`) remain pending.
+**Implementation status: text and voice paths implemented.** Section 7.2 is implemented by `TextAnnouncementService`, `buildTextAnnouncement`, and `DiscordMessageSender`; Sections 7.3–7.4 by `VoiceAnnouncementService`, `runVoiceCycle`, `VoiceCoordinator`, `DiscordVoiceDirectory`, and `DiscordVoiceTransport`. Live voice playback remains unverified; Section 7.5 (`/test`) is implemented with labelled output and suppressed mentions.
 
 ### 7.1 Independence invariant
 
@@ -416,7 +416,7 @@ The text service does not read the delivery ledger and does not own scheduling.
 6. A channel failure is logged and the loop continues.
 7. The lock is released only after the connection is closed or confirmed inactive.
 
-**Implemented (Proposed policy):** a single per-guild `VoiceCoordinator` owns the lock; a cycle requested while another is active is **skipped**, not queued. `/test` will share this lock in M7. This enforces BR-020/BR-021.
+**Implemented (Proposed policy):** a single per-guild `VoiceCoordinator` owns the lock; a cycle requested while another is active is **skipped**, not queued. `/test` shares this lock, so an overlapping test or real cycle is skipped; the real event's ledger key is still committed first by the scheduler. This enforces BR-020/BR-021.
 
 **Implemented (Proposed rule):** a channel is private when `@everyone` cannot view it — a permission fact, never a name guess. The policy is applied from `includePrivateVoice` in settings.
 
@@ -456,7 +456,7 @@ sequenceDiagram
 
 ### 7.5 Test announcements
 
-`/test` uses the same text and voice services with a test flag. It must not write delivery-ledger entries or suppress a real event (BR-051). Whether a text test sends a real mention or a preview, whether a voice test uses all channels or one channel, and whether tests share the real voice lock remain **Open**.
+**Implemented:** `/test` calls `TextAnnouncementService.send(..., isTest: true)` and `VoiceAnnouncementService.runCycle(..., isTest: true)` directly. Text output is prefixed `[TEST]` and mentions are suppressed; voice tests run even when automation is disabled. It writes no ledger entries and never modifies a real event (BR-051) — verified by an integration test against real SQLite. Tests share the real per-guild voice lock; using a separate lock remains **Open**.
 
 ## 8. Persistence and state
 
@@ -526,7 +526,7 @@ The architecture is consistent with the documented constraints, but these points
 
 1. **Exactly-once vs at-most-once — resolved.** Discord sends are not idempotent. Ledger commit-before-dispatch is now **Confirmed** (M4.1): it prioritizes no duplicates and may lose an announcement on a crash. An occurrence can therefore be recorded as handled even when the handler sends nothing because the configuration is invalid or disabled at that moment; this is logged with context. The full rationale is in [`technical/scheduling-design.md`](../technical/scheduling-design.md#8-restart-recovery-and-duplicate-execution-risks).
 2. **Scheduler and long voice cycles — resolved for dispatch.** The handler starts text and voice without awaiting either; the scheduler arms the next event immediately. Shutdown tracking of in-flight work remains Open.
-3. **Overlapping voice cycles — implemented as Proposed.** The per-guild coordinator skips a second cycle; `/test` will share the lock in M7.
+3. **Overlapping voice cycles — implemented as Proposed.** The per-guild coordinator skips a second cycle; `/test` shares that lock, so a test overlapping a real cycle is skipped.
 4. **Configuration changes during delivery.** BR-053 leaves in-flight voice behavior Open. The architecture must define whether a running cycle finishes, stops, or ignores the change.
 5. **Privacy classification — implemented as Proposed.** A channel is private when `@everyone` cannot view it; eligibility uses `includePrivateVoice`. No channel-name inference is performed.
 6. **No eligible voice channels.** Whether the cycle is a silent no-op or produces a log/admin response is Open.
@@ -534,7 +534,7 @@ The architecture is consistent with the documented constraints, but these points
 8. **Delivery ledger implementation — resolved.** The module-owned store, commit-before-dispatch, fail-closed behavior, and 7-day pruning are implemented and tested.
 9. **Late events — implemented as Proposed.** Events more than 60 seconds late are skipped and logged; formal product approval is still pending.
 10. **Setup state.** In-memory drafts are reasonable for one process, but whether an unfinished setup must survive restart is Open.
-11. **Test behavior.** Real mentions, target channels, and voice-lock sharing for `/test` are Open and affect both safety and architecture.
+11. **Test behavior — implemented.** Test output is labelled and mentions are suppressed; voice tests run while disabled; ledger/schedule/settings are untouched. Only the choice of a separate test voice lock and the exact voice target remains Open.
 12. **Authorization and command registration.** The exact administrator permission and whether commands are registered globally or per server are Open.
 13. **Mention permission and unavailable target.** `Mention Everyone` is required for both `@everyone` and role mentions, and the response to a deleted or unmentionable role is Open (BR-039).
 
@@ -548,7 +548,7 @@ The following should be investigated and recorded, likely as ADRs or technical d
 - Voice connection library and audio playback stack — **implemented**: `@discordjs/voice`, `opusscript`, and local PCM assets; live playback still unverified.
 - External geocoding provider (deferred; Location is curated-data-only) and the privacy-classification rule — **implemented as Proposed**: private means `@everyone` cannot view.
 - Stage channel, AFK channel, and no-eligible-channel behavior; the current adapter considers only `GuildVoice` channels.
-- Overlapping voice cycles — **implemented as Proposed**: skip the second cycle; `/test` lock sharing arrives in M7.
+- Overlapping voice cycles — **implemented as Proposed**: skip the second cycle; `/test` shares the real lock, with a separate test lock still Open.
 - In-flight behavior for configuration changes, disabling, and shutdown.
 - Setup-draft persistence and the exact command registration and authorization model.
 - Logging destination, retention, and alerting expectations.

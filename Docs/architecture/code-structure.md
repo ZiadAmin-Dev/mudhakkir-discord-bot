@@ -386,7 +386,7 @@ The exact lint or dependency-checking tool is **Open**. The rules must be enforc
 
 ## 6. Testing layout and dependency mocking
 
-**Current status:** the existing suite has 17 test files and reports 85 passing tests. `npx tsc --noEmit` passes. Tests use the Node.js built-in test runner (`node --test`) with TypeScript support via `tsx`.
+**Current status:** the existing suite has 18 test files and reports 88 passing tests. `npx tsc --noEmit` passes. Tests use the Node.js built-in test runner (`node --test`) with TypeScript support via `tsx`.
 
 ### Test directory layout:
 
@@ -409,6 +409,7 @@ The exact lint or dependency-checking tool is **Open**. The rules must be enforc
   - `scheduling-persistence.test.ts` — Real-SQLite ledger persistence and pruning, no replay after restart, and merged multi-guild timeline.
   - `scheduled-text-delivery.test.ts` — Scheduler → reminder handler → text delivery: one message per due event, exact role mentions, none for disabled guilds.
   - `settings-rebuild.test.ts` — A settings change through DI triggers the scheduler rebuild callback and moves the next approaching event.
+  - `test-command-isolation.test.ts` — `/test` against real SQLite: `[TEST]` output with suppressed mentions, and ledger/schedule/settings unchanged.
   - `commands/` — Planned M8 end-to-end command tests with live Discord.
 - `test/fixtures/` — Sample test data (pre-calculated prayer tables, valid/invalid settings JSON, test audio buffers).
 

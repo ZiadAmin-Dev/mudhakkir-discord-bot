@@ -110,13 +110,14 @@ The M4.1 study of scheduling concepts, edge cases, and the proposed minimal desi
   - In addition, commands define `default_member_permissions: PermissionFlagsBits.ManageGuild` in their slash definition to hide/disable them in the Discord UI for regular members.
 
 ### Text Announcements & Mentions
-- **Status:** **Implemented** (M5). Built by `buildTextAnnouncement`, delivered through the `ITextMessageSender` port by `DiscordMessageSender`; the reminder handler is the scheduler callback. Voice remains planned.
+- **Status:** **Implemented** (M5, with M7 test support). Built by `buildTextAnnouncement`, delivered through the `ITextMessageSender` port by `DiscordMessageSender`; the reminder handler is the scheduler callback. `isTest: true` prefixes `[TEST]` and sets `allowedMentions: { parse: [], roles: [] }`, so tests never ping anyone.
 - **Channel Target:** Retrieved from persisted guild configuration.
 - **Mention Target:**
   - Configurable as either `@everyone` or a specific role snowflake (e.g., `<@&role_id>`).
   - **Mention Formatting:**
     - If `@everyone`: message contains `@everyone` text and sets `allowedMentions: { parse: ['everyone'] }`.
     - If specific role: message contains `<@&role_id>` and sets `allowedMentions: { roles: [roleId], parse: [] }`. This guarantees `@everyone` is never pinged when a role is configured (BR-037).
+    - For tests (`isTest: true`), both modes render the mention label but send `allowedMentions: { parse: [], roles: [] }`: no ping, even when the configured target is a role.
 - **Bot Permissions Required in Text Channel:**
   - `ViewChannel`, `SendMessages`, and `MentionEveryone` (BR-060).
   - Missing permissions or deleted text channels are caught, logged, and isolated without crashing the application (BR-034).
@@ -142,7 +143,8 @@ The M4.1 study of scheduling concepts, edge cases, and the proposed minimal desi
 ### Sequential Channel Processing & Lock Management (Implemented)
 - **Guild Voice Mutex (Lock — Implemented):**
   - `VoiceCoordinator` holds a per-guild `Set` of active cycles; a second cycle is skipped rather than queued (Proposed policy).
-  - Ensures BR-020/BR-021: at most one active voice connection per guild. `/test` will share this lock in M7.
+  - Ensures BR-020/BR-021: at most one active voice connection per guild. `/test` shares this lock: an overlapping test or real cycle is skipped, and the real event's ledger key is still committed before its dispatch. A dedicated test lock remains Open.
+  - `isTest: true` bypasses the `enabled === false` early-return so a voice test works while automation is disabled.
 - **Sequential Playback Loop:**
   1. Filter guild voice channels based on initial eligibility:
      - Standard voice channel (`ChannelType.GuildVoice`).

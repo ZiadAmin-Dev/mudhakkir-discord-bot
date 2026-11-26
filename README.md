@@ -78,7 +78,7 @@ See [`Docs/`](./Docs/) for product requirements, business rules, system architec
 
 ### Invite the bot for local testing
 
-In the Discord Developer Portal → **OAuth2 → URL Generator**, select scopes `bot` and `applications.commands`, and bot permissions **View Channel**, **Send Messages**, **Mention Everyone**, **Connect**, and **Speak**. Open the generated URL and authorize the bot in your test server. Leave privileged gateway intents disabled. `/setup` uses Discord's native channel/role pickers, so Developer Mode is not required.
+In the Discord Developer Portal → **OAuth2 → URL Generator**, select scopes `bot` and `applications.commands`, and bot permissions **View Channel**, **Send Messages**, **Mention Everyone**, **Connect**, and **Speak**. Open the generated URL and authorize the bot in your test server. Leave privileged gateway intents disabled. `/setup` uses Discord's native channel/role pickers, so Developer Mode is not required. `/test` output is labelled `[TEST]` and suppresses mentions — it never pings members or touches the delivery ledger.
 
 ### Testing
 
