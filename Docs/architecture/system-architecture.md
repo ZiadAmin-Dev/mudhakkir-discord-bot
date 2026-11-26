@@ -50,7 +50,7 @@ The current source tree is a foundation, not the complete design below:
 | Announcements | **Text and voice implemented.** Due events deliver text with exact mentions; approaching events run a sequential voice cycle with a per-guild lock. Live Discord playback and `/test` remain unverified/planned. |
 | Shutdown | **Partially implemented.** The scheduler is stopped first, then the Discord client is destroyed on `SIGINT`/`SIGTERM`; voice and database teardown arrive with their components. |
 
-`npx tsc --noEmit` passes and the current test suite reports 84 passing tests. The [implementation roadmap](../development/implementation-roadmap.md) tracks milestone status and known gaps.
+`npx tsc --noEmit` passes and the current test suite reports 85 passing tests. The [implementation roadmap](../development/implementation-roadmap.md) tracks milestone status and known gaps.
 
 ## 2. Layered Architecture & Module Map
 
@@ -327,8 +327,10 @@ The scheduler rebuild must:
 1. `/setup` calls `ILocationService.listCountries()` and renders a country menu whose option **value is the canonical country code** and whose label is the country name from Location.
 2. The selected value is validated against the interaction context and passed as `countryCode` to `LocationService.resolve()` or to `listCities(countryCode)`.
 3. `LocationService` applies all business rules: country existence, `cityRequired`, `defaultCity`, city membership, and final resolution.
-4. If a city is required, a city menu is rendered from `listCities(countryCode)`, with the canonical city ID/name as the option value. Otherwise the resolved default city is used.
-5. The resolved location feeds the remaining setup steps; final settings are written once through `SettingsService` after confirmation.
+4. A city menu is always rendered from `listCities(countryCode)` (only cities of that country, canonical city ID as the option value). City selection is optional when Location's country record has a `defaultCity`: a "Use default city" button calls `resolve({ countryCode })`. When `cityRequired` is true (for example the USA), no skip button is offered and a city must be chosen.
+5. The resolved location supplies coordinates, timezone, and calculation method. The method is **not** presented as a user choice in this release.
+6. The text channel is chosen with Discord's native channel select menu (text channels only), the mention target with a select menu plus a role picker, and the lead time with a small modal. No IDs are typed by the user.
+7. The resolved location and chosen presentation values are written once through `SettingsService` after confirmation, with announcements initially disabled.
 
 The Discord layer never duplicates country/city reference data and never normalizes typed country names, matches aliases or Arabic names, or performs fuzzy search for this flow. `findCountries()`/`findCities()` exist on the Location service for other read-only uses but are not used by setup. Discord may use Location's returned fields (`cityRequired`, `defaultCity`, resolved location) only to choose the next UI step.
 

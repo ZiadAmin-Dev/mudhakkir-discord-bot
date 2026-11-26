@@ -50,9 +50,12 @@ See [`Docs/`](./Docs/) for product requirements, business rules, system architec
    ```env
    DISCORD_TOKEN=your-bot-token
    CLIENT_ID=your-application-id
-   LOG_LEVEL=info
+   DEV_GUILD_ID=your-test-server-id   # optional: instant slash commands in one server
+   LOG_LEVEL=debug
    NODE_ENV=development
    ```
+
+   `DEV_GUILD_ID` is optional. Leaving it empty registers commands globally, which can take up to an hour to appear. Setting it to a test server ID registers commands there instantly.
 
 3. Install dependencies:
 
@@ -72,6 +75,10 @@ See [`Docs/`](./Docs/) for product requirements, business rules, system architec
    npm run build
    npm start
    ```
+
+### Invite the bot for local testing
+
+In the Discord Developer Portal → **OAuth2 → URL Generator**, select scopes `bot` and `applications.commands`, and bot permissions **View Channel**, **Send Messages**, **Mention Everyone**, **Connect**, and **Speak**. Open the generated URL and authorize the bot in your test server. Leave privileged gateway intents disabled. `/setup` uses Discord's native channel/role pickers, so Developer Mode is not required.
 
 ### Testing
 

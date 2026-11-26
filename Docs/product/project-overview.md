@@ -151,7 +151,7 @@ The following questions are open and must not be treated as settled. They are ca
 ### Location and prayer calculation
 - Whether a manual timezone override is offered in a later release (initial setup uses the timezone from Location).
 - Country/city select-menu pagination details if the curated list grows beyond 25 options.
-- Which calculation methods are exposed in configuration.
+- Whether a future release should let administrators override the Location-provided calculation method (the current setup uses the resolved method).
 - How timezone and calculation changes affect already-scheduled events.
 
 ### Architecture and technology

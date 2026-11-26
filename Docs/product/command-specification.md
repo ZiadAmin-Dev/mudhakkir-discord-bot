@@ -40,15 +40,14 @@ An authorized server administrator in the server being configured (BR-063). The 
 
 No slash-command options are required beyond invoking the command. Configuration is collected through follow-up interactions. The proposed sequence is:
 
-1. **Country:** the bot retrieves available countries through `ILocationService.listCountries()` and displays a Discord String Select Menu. The option value is the **canonical country code**; the label is the country name from Location. The administrator picks an option — country names are never typed, translated, aliased, or fuzzy-matched.
-2. **City:** the bot validates the selected code and asks Location to resolve it. If Location reports that a city is required, the bot displays a city select menu built from `ILocationService.listCities(countryCode)`, with the canonical city ID/name as the option value. Otherwise the country's default city from Location is used.
-3. **Timezone and coordinates:** taken from the location resolved by `LocationService.resolve()`; no manual coordinate entry is part of this flow. Whether a manual timezone override is offered later is **Open**.
-4. **Calculation method:** defaults to the method returned by Location for the resolved country/city; the administrator may choose any supported method.
-5. **Text channel:** select the channel that receives prayer-time reminders.
-6. **Mention target:** choose `@everyone` (the default) or one specific role from this server.
-7. **Lead time:** enter the number of minutes before prayer for the voice reminder; the default is 10.
-8. **Private voice channels:** choose whether restricted voice channels are included.
-9. **Review and confirm:** show a summary of all values before saving.
+1. **Country:** the bot retrieves available countries through `ILocationService.listCountries()` and displays a Discord String Select Menu. The option value is the **canonical country code**; the label is the country name from Location. Country names are never typed, translated, aliased, or fuzzy-matched.
+2. **City:** a city select menu is built from `ILocationService.listCities(countryCode)`, so it shows only cities belonging to the chosen country; the option value is the canonical city ID. City choice is **optional for countries with a default city** — a "Use default city" button resolves the country without a city. For countries where Location marks `cityRequired` (for example the USA, whose cities span multiple timezones), a city **must** be chosen.
+3. **Timezone, coordinates, and calculation method:** all come from `LocationService.resolve()`. The method is **not user-selectable**; this release keeps setup simple by using the city override or country default from Location. No manual coordinate or timezone entry is part of the flow.
+4. **Text channel:** the administrator picks the reminder channel from Discord's native **channel select menu**, restricted to text channels. No channel ID needs to be copied.
+5. **Mention target:** optional — a select menu offers `@everyone`, one specific role, or **Skip (use @everyone)**. If a role is chosen, a native **role select menu** provides the role ID. The default is `@everyone`; no role ID needs to be copied.
+6. **Lead time:** enter the number of minutes before prayer for the voice reminder (1–60); the default is 10.
+7. **Private voice channels:** choose whether restricted voice channels are included.
+8. **Review and confirm:** show a summary of all values before saving.
 
 Location owns all location business rules (country existence, city membership, required-city and default-city rules, final resolution). The Discord layer only validates the interaction and the selected option, then passes the canonical code/ID to Location; it does not duplicate reference data or location rules.
 
@@ -70,7 +69,7 @@ Discord String Select Menus allow at most 25 options. Country and city menus mus
 - The command is used in a server, not a direct message.
 - The location resolves to coordinates and an IANA timezone; a country name alone is insufficient (BR-068).
 - The timezone is a valid IANA identifier, not a numeric offset (BR-069).
-- The calculation method is a supported value (BR-070; supported set Open).
+- The calculation method is the value returned by Location for the selected country/city; it is not entered by the administrator (BR-070).
 - The selected text channel exists in the same server and is a type the bot can send to (BR-071).
 - The mention target is either `@everyone` or a role in the same server (FR-015, BR-036, BR-038). If a role is selected, the bot should check or clearly report whether it can mention it.
 - The lead time is within the permitted range (BR-072; range and per-prayer scope Open).
