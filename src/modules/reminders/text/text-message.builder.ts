@@ -22,8 +22,13 @@ export interface TextAnnouncement {
   allowedMentions: AllowedMentionsPayload;
 }
 
-export function buildTextAnnouncement(prayer: PrayerName, settings: GuildSettings): TextAnnouncement {
+export function buildTextAnnouncement(
+  prayer: PrayerName,
+  settings: GuildSettings,
+  isTest = false
+): TextAnnouncement {
   const body = `It's time for ${PRAYER_LABELS[prayer]} prayer.`;
+  const prefix = isTest ? '[TEST] ' : '';
 
   if (settings.mentionType === 'role') {
     const roleId = settings.mentionRoleId;
@@ -31,13 +36,13 @@ export function buildTextAnnouncement(prayer: PrayerName, settings: GuildSetting
       throw missingRoleMentionError;
     }
     return {
-      content: `<@&${roleId}> — ${body}`,
-      allowedMentions: { parse: [], roles: [roleId] }
+      content: `${prefix}<@&${roleId}> — ${body}`,
+      allowedMentions: isTest ? { parse: [], roles: [] } : { parse: [], roles: [roleId] }
     };
   }
 
   return {
-    content: `@everyone — ${body}`,
-    allowedMentions: { parse: ['everyone'] }
+    content: `${prefix}@everyone — ${body}`,
+    allowedMentions: isTest ? { parse: [], roles: [] } : { parse: ['everyone'] }
   };
 }

@@ -14,7 +14,7 @@ import { VoiceCoordinator } from './voice-coordinator.js';
 import { runVoiceCycle } from './voice-cycle.js';
 
 export interface IVoiceAnnouncementService {
-  runCycle(prayer: PrayerName, settings: GuildSettings): Promise<void>;
+  runCycle(prayer: PrayerName, settings: GuildSettings, isTest?: boolean): Promise<void>;
 }
 
 @injectable()
@@ -26,8 +26,9 @@ export class VoiceAnnouncementService implements IVoiceAnnouncementService {
     @inject(TOKENS.Logger) private readonly logger?: Logger
   ) {}
 
-  async runCycle(prayer: PrayerName, settings: GuildSettings): Promise<void> {
-    if (!settings.enabled) {
+  async runCycle(prayer: PrayerName, settings: GuildSettings, isTest = false): Promise<void> {
+    // A test is allowed while automation is disabled; a real approaching event is not.
+    if (!settings.enabled && !isTest) {
       return;
     }
 
@@ -43,7 +44,7 @@ export class VoiceAnnouncementService implements IVoiceAnnouncementService {
     );
 
     if (!started) {
-      this.logger?.debug({ guildId: settings.guildId, prayer }, 'Voice cycle already active; skipping');
+      this.logger?.debug({ guildId: settings.guildId, prayer, isTest }, 'Voice cycle already active; skipping');
     }
   }
 }

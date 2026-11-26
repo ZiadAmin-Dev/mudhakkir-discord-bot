@@ -80,6 +80,16 @@ describe('Text announcements (Milestone 5)', () => {
     ]);
   });
 
+  it('labels tests and suppresses every mention mode', async () => {
+    const everyone = buildTextAnnouncement('fajr', settings, true);
+    assert.equal(everyone.content, "[TEST] @everyone — It's time for Fajr prayer.");
+    assert.deepEqual(everyone.allowedMentions, { parse: [], roles: [] });
+
+    const role = buildTextAnnouncement('asr', { ...settings, mentionType: 'role', mentionRoleId: 'role-1' }, true);
+    assert.equal(role.content, "[TEST] <@&role-1> — It's time for Asr prayer.");
+    assert.deepEqual(role.allowedMentions, { parse: [], roles: [] });
+  });
+
   it('contains sender failures instead of propagating them', async () => {
     const sender = new FakeSender();
     sender.fail = true;

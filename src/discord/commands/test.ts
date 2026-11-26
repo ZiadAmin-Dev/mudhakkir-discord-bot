@@ -47,14 +47,14 @@ export class TestCommand implements ICommandHandler {
     await interaction.deferReply({ ephemeral: true });
 
     if (type === 'text' || type === 'both') {
-      await this.text.send(prayer as PrayerName, current);
+      await this.text.send(prayer as PrayerName, current, true);
     }
     if (type === 'voice' || type === 'both') {
-      await this.voice.runCycle(prayer as PrayerName, current);
+      await this.voice.runCycle(prayer as PrayerName, current, true);
     }
 
     await interaction.editReply({
-      content: `Test completed for ${prayer} (${type}). Real scheduled events and the delivery ledger were not modified.`
+      content: `Test completed for ${prayer} (${type}). Output is labelled [TEST] and mentions are suppressed; real scheduled events and the delivery ledger were not modified.`
     });
   }
 }

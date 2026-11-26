@@ -152,6 +152,17 @@ describe('Voice announcements (Milestone 6)', () => {
     assert.equal(coordinator.isActive('guild-1'), false);
   });
 
+  it('allows a test cycle while automation is disabled', async () => {
+    const directory = new FakeDirectory();
+    directory.channels = [channel('a')];
+    const transport = new FakeTransport();
+    const service = new VoiceAnnouncementService(directory, transport, new VoiceCoordinator());
+
+    await service.runCycle('fajr', { ...settings, enabled: false }, true);
+
+    assert.deepEqual(transport.announced, ['a']);
+  });
+
   it('skips disabled guilds and overlapping cycles in the voice service', async () => {
     const directory = new FakeDirectory();
     directory.channels = [channel('a')];

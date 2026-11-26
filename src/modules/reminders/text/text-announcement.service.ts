@@ -13,7 +13,7 @@ import { buildTextAnnouncement } from './text-message.builder.js';
 import { ITextMessageSender } from './text-message-sender.port.js';
 
 export interface ITextAnnouncementService {
-  send(prayer: PrayerName, settings: GuildSettings): Promise<void>;
+  send(prayer: PrayerName, settings: GuildSettings, isTest?: boolean): Promise<void>;
 }
 
 @injectable()
@@ -23,8 +23,8 @@ export class TextAnnouncementService implements ITextAnnouncementService {
     @inject(TOKENS.Logger) private readonly logger?: Logger
   ) {}
 
-  async send(prayer: PrayerName, settings: GuildSettings): Promise<void> {
-    const announcement = buildTextAnnouncement(prayer, settings);
+  async send(prayer: PrayerName, settings: GuildSettings, isTest = false): Promise<void> {
+    const announcement = buildTextAnnouncement(prayer, settings, isTest);
 
     try {
       await this.sender.send({
@@ -32,10 +32,10 @@ export class TextAnnouncementService implements ITextAnnouncementService {
         content: announcement.content,
         allowedMentions: announcement.allowedMentions
       });
-      this.logger?.info({ guildId: settings.guildId, prayer }, 'Text announcement sent');
+      this.logger?.info({ guildId: settings.guildId, prayer, isTest }, 'Text announcement sent');
     } catch (error) {
       // Text failure is contained here; it never affects the voice path.
-      this.logger?.error({ guildId: settings.guildId, prayer, err: error }, 'Text announcement failed');
+      this.logger?.error({ guildId: settings.guildId, prayer, isTest, err: error }, 'Text announcement failed');
     }
   }
 }
