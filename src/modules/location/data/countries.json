@@ -1,81 +1,18 @@
 [
   {
-    "code": "EG",
-    "name": "Egypt",
+    "code": "AF",
+    "name": "Afghanistan",
     "cityRequired": false,
-    "defaultCity": "cairo",
-    "timezones": ["Africa/Cairo"],
-    "defaultCalculationMethod": "Egyptian"
-  },
-  {
-    "code": "SA",
-    "name": "Saudi Arabia",
-    "cityRequired": false,
-    "defaultCity": "riyadh",
-    "timezones": ["Asia/Riyadh"],
-    "defaultCalculationMethod": "UmmAlQura"
-  },
-  {
-    "code": "AE",
-    "name": "United Arab Emirates",
-    "cityRequired": false,
-    "defaultCity": "abu-dhabi",
-    "timezones": ["Asia/Dubai"],
-    "defaultCalculationMethod": "Dubai"
-  },
-  {
-    "code": "US",
-    "name": "United States",
-    "cityRequired": true,
-    "defaultCity": null,
-    "timezones": [
-      "America/New_York",
-      "America/Chicago",
-      "America/Denver",
-      "America/Los_Angeles",
-      "America/Anchorage",
-      "Pacific/Honolulu"
-    ],
-    "defaultCalculationMethod": "NorthAmerica"
-  },
-  {
-    "code": "GB",
-    "name": "United Kingdom",
-    "cityRequired": false,
-    "defaultCity": "london",
-    "timezones": ["Europe/London"],
+    "defaultCity": "kabul",
+    "timezones": ["Asia/Kabul"],
     "defaultCalculationMethod": "MuslimWorldLeague"
   },
   {
-    "code": "MA",
-    "name": "Morocco",
+    "code": "AL",
+    "name": "Albania",
     "cityRequired": false,
-    "defaultCity": "casablanca",
-    "timezones": ["Africa/Casablanca"],
-    "defaultCalculationMethod": "MuslimWorldLeague"
-  },
-  {
-    "code": "PK",
-    "name": "Pakistan",
-    "cityRequired": false,
-    "defaultCity": "karachi",
-    "timezones": ["Asia/Karachi"],
-    "defaultCalculationMethod": "Karachi"
-  },
-  {
-    "code": "TR",
-    "name": "Turkey",
-    "cityRequired": false,
-    "defaultCity": "istanbul",
-    "timezones": ["Europe/Istanbul"],
-    "defaultCalculationMethod": "Turkey"
-  },
-  {
-    "code": "ID",
-    "name": "Indonesia",
-    "cityRequired": true,
-    "defaultCity": null,
-    "timezones": ["Asia/Jakarta", "Asia/Makassar", "Asia/Jayapura"],
+    "defaultCity": "tirana",
+    "timezones": ["Europe/Tirane"],
     "defaultCalculationMethod": "MuslimWorldLeague"
   },
   {
@@ -87,11 +24,43 @@
     "defaultCalculationMethod": "MuslimWorldLeague"
   },
   {
+    "code": "AZ",
+    "name": "Azerbaijan",
+    "cityRequired": false,
+    "defaultCity": "baku",
+    "timezones": ["Asia/Baku"],
+    "defaultCalculationMethod": "MuslimWorldLeague"
+  },
+  {
     "code": "BH",
     "name": "Bahrain",
     "cityRequired": false,
     "defaultCity": "manama",
     "timezones": ["Asia/Bahrain"],
+    "defaultCalculationMethod": "MuslimWorldLeague"
+  },
+  {
+    "code": "BD",
+    "name": "Bangladesh",
+    "cityRequired": false,
+    "defaultCity": "dhaka",
+    "timezones": ["Asia/Dhaka"],
+    "defaultCalculationMethod": "MuslimWorldLeague"
+  },
+  {
+    "code": "BA",
+    "name": "Bosnia and Herzegovina",
+    "cityRequired": false,
+    "defaultCity": "sarajevo",
+    "timezones": ["Europe/Sarajevo"],
+    "defaultCalculationMethod": "MuslimWorldLeague"
+  },
+  {
+    "code": "BN",
+    "name": "Brunei",
+    "cityRequired": false,
+    "defaultCity": "bandar-seri-begawan",
+    "timezones": ["Asia/Brunei"],
     "defaultCalculationMethod": "MuslimWorldLeague"
   },
   {
@@ -103,12 +72,44 @@
     "defaultCalculationMethod": "MuslimWorldLeague"
   },
   {
+    "code": "KM",
+    "name": "Comoros",
+    "cityRequired": false,
+    "defaultCity": "moroni",
+    "timezones": ["Indian/Comoro"],
+    "defaultCalculationMethod": "MuslimWorldLeague"
+  },
+  {
     "code": "DJ",
     "name": "Djibouti",
     "cityRequired": false,
     "defaultCity": "djibouti",
     "timezones": ["Africa/Djibouti"],
     "defaultCalculationMethod": "MuslimWorldLeague"
+  },
+  {
+    "code": "EG",
+    "name": "Egypt",
+    "cityRequired": false,
+    "defaultCity": "cairo",
+    "timezones": ["Africa/Cairo"],
+    "defaultCalculationMethod": "Egyptian"
+  },
+  {
+    "code": "ID",
+    "name": "Indonesia",
+    "cityRequired": true,
+    "defaultCity": null,
+    "timezones": ["Asia/Jakarta","Asia/Makassar","Asia/Jayapura"],
+    "defaultCalculationMethod": "MuslimWorldLeague"
+  },
+  {
+    "code": "IR",
+    "name": "Iran",
+    "cityRequired": false,
+    "defaultCity": "tehran",
+    "timezones": ["Asia/Tehran"],
+    "defaultCalculationMethod": "Tehran"
   },
   {
     "code": "IQ",
@@ -127,12 +128,28 @@
     "defaultCalculationMethod": "MuslimWorldLeague"
   },
   {
+    "code": "KZ",
+    "name": "Kazakhstan",
+    "cityRequired": false,
+    "defaultCity": "almaty",
+    "timezones": ["Asia/Almaty"],
+    "defaultCalculationMethod": "MuslimWorldLeague"
+  },
+  {
     "code": "KW",
     "name": "Kuwait",
     "cityRequired": false,
     "defaultCity": "kuwait-city",
     "timezones": ["Asia/Kuwait"],
     "defaultCalculationMethod": "Kuwait"
+  },
+  {
+    "code": "KG",
+    "name": "Kyrgyzstan",
+    "cityRequired": false,
+    "defaultCity": "bishkek",
+    "timezones": ["Asia/Bishkek"],
+    "defaultCalculationMethod": "MuslimWorldLeague"
   },
   {
     "code": "LB",
@@ -151,118 +168,6 @@
     "defaultCalculationMethod": "MuslimWorldLeague"
   },
   {
-    "code": "MR",
-    "name": "Mauritania",
-    "cityRequired": false,
-    "defaultCity": "nouakchott",
-    "timezones": ["Africa/Nouakchott"],
-    "defaultCalculationMethod": "MuslimWorldLeague"
-  },
-  {
-    "code": "OM",
-    "name": "Oman",
-    "cityRequired": false,
-    "defaultCity": "muscat",
-    "timezones": ["Asia/Muscat"],
-    "defaultCalculationMethod": "MuslimWorldLeague"
-  },
-  {
-    "code": "PS",
-    "name": "Palestine",
-    "cityRequired": true,
-    "defaultCity": null,
-    "timezones": ["Asia/Hebron", "Asia/Gaza"],
-    "defaultCalculationMethod": "MuslimWorldLeague"
-  },
-  {
-    "code": "QA",
-    "name": "Qatar",
-    "cityRequired": false,
-    "defaultCity": "doha",
-    "timezones": ["Asia/Qatar"],
-    "defaultCalculationMethod": "Qatar"
-  },
-  {
-    "code": "SD",
-    "name": "Sudan",
-    "cityRequired": false,
-    "defaultCity": "khartoum",
-    "timezones": ["Africa/Khartoum"],
-    "defaultCalculationMethod": "Egyptian"
-  },
-  {
-    "code": "SO",
-    "name": "Somalia",
-    "cityRequired": false,
-    "defaultCity": "mogadishu",
-    "timezones": ["Africa/Mogadishu"],
-    "defaultCalculationMethod": "MuslimWorldLeague"
-  },
-  {
-    "code": "SY",
-    "name": "Syria",
-    "cityRequired": false,
-    "defaultCity": "damascus",
-    "timezones": ["Asia/Damascus"],
-    "defaultCalculationMethod": "MuslimWorldLeague"
-  },
-  {
-    "code": "TN",
-    "name": "Tunisia",
-    "cityRequired": false,
-    "defaultCity": "tunis",
-    "timezones": ["Africa/Tunis"],
-    "defaultCalculationMethod": "MuslimWorldLeague"
-  },
-  {
-    "code": "YE",
-    "name": "Yemen",
-    "cityRequired": false,
-    "defaultCity": "sanaa",
-    "timezones": ["Asia/Aden"],
-    "defaultCalculationMethod": "MuslimWorldLeague"
-  },
-  {
-    "code": "KM",
-    "name": "Comoros",
-    "cityRequired": false,
-    "defaultCity": "moroni",
-    "timezones": ["Indian/Comoro"],
-    "defaultCalculationMethod": "MuslimWorldLeague"
-  },
-  {
-    "code": "AF",
-    "name": "Afghanistan",
-    "cityRequired": false,
-    "defaultCity": "kabul",
-    "timezones": ["Asia/Kabul"],
-    "defaultCalculationMethod": "MuslimWorldLeague"
-  },
-  {
-    "code": "BD",
-    "name": "Bangladesh",
-    "cityRequired": false,
-    "defaultCity": "dhaka",
-    "timezones": ["Asia/Dhaka"],
-    "defaultCalculationMethod": "MuslimWorldLeague"
-  },
-  {
-    "code": "IR",
-    "name": "Iran",
-    "cityRequired": false,
-    "defaultCity": "tehran",
-    "timezones": ["Asia/Tehran"],
-    "defaultCalculationMethod": "Tehran"
-  },
-  {
-    "code": "KZ",
-    "name": "Kazakhstan",
-    "cityRequired": false,
-    "defaultCity": "almaty",
-    "timezones": ["Asia/Almaty"],
-    "defaultCalculationMethod": "MuslimWorldLeague"
-  },
-  {
     "code": "MY",
     "name": "Malaysia",
     "cityRequired": false,
@@ -271,11 +176,35 @@
     "defaultCalculationMethod": "MuslimWorldLeague"
   },
   {
+    "code": "MV",
+    "name": "Maldives",
+    "cityRequired": false,
+    "defaultCity": "male",
+    "timezones": ["Indian/Maldives"],
+    "defaultCalculationMethod": "MuslimWorldLeague"
+  },
+  {
     "code": "ML",
     "name": "Mali",
     "cityRequired": false,
     "defaultCity": "bamako",
     "timezones": ["Africa/Bamako"],
+    "defaultCalculationMethod": "MuslimWorldLeague"
+  },
+  {
+    "code": "MR",
+    "name": "Mauritania",
+    "cityRequired": false,
+    "defaultCity": "nouakchott",
+    "timezones": ["Africa/Nouakchott"],
+    "defaultCalculationMethod": "MuslimWorldLeague"
+  },
+  {
+    "code": "MA",
+    "name": "Morocco",
+    "cityRequired": false,
+    "defaultCity": "casablanca",
+    "timezones": ["Africa/Casablanca"],
     "defaultCalculationMethod": "MuslimWorldLeague"
   },
   {
@@ -295,6 +224,46 @@
     "defaultCalculationMethod": "MuslimWorldLeague"
   },
   {
+    "code": "OM",
+    "name": "Oman",
+    "cityRequired": false,
+    "defaultCity": "muscat",
+    "timezones": ["Asia/Muscat"],
+    "defaultCalculationMethod": "MuslimWorldLeague"
+  },
+  {
+    "code": "PK",
+    "name": "Pakistan",
+    "cityRequired": false,
+    "defaultCity": "karachi",
+    "timezones": ["Asia/Karachi"],
+    "defaultCalculationMethod": "Karachi"
+  },
+  {
+    "code": "PS",
+    "name": "Palestine",
+    "cityRequired": true,
+    "defaultCity": null,
+    "timezones": ["Asia/Hebron","Asia/Gaza"],
+    "defaultCalculationMethod": "MuslimWorldLeague"
+  },
+  {
+    "code": "QA",
+    "name": "Qatar",
+    "cityRequired": false,
+    "defaultCity": "doha",
+    "timezones": ["Asia/Qatar"],
+    "defaultCalculationMethod": "Qatar"
+  },
+  {
+    "code": "SA",
+    "name": "Saudi Arabia",
+    "cityRequired": false,
+    "defaultCity": "riyadh",
+    "timezones": ["Asia/Riyadh"],
+    "defaultCalculationMethod": "UmmAlQura"
+  },
+  {
     "code": "SN",
     "name": "Senegal",
     "cityRequired": false,
@@ -303,51 +272,27 @@
     "defaultCalculationMethod": "MuslimWorldLeague"
   },
   {
-    "code": "UZ",
-    "name": "Uzbekistan",
+    "code": "SO",
+    "name": "Somalia",
     "cityRequired": false,
-    "defaultCity": "tashkent",
-    "timezones": ["Asia/Tashkent"],
+    "defaultCity": "mogadishu",
+    "timezones": ["Africa/Mogadishu"],
     "defaultCalculationMethod": "MuslimWorldLeague"
   },
   {
-    "code": "AZ",
-    "name": "Azerbaijan",
+    "code": "SD",
+    "name": "Sudan",
     "cityRequired": false,
-    "defaultCity": "baku",
-    "timezones": ["Asia/Baku"],
-    "defaultCalculationMethod": "MuslimWorldLeague"
+    "defaultCity": "khartoum",
+    "timezones": ["Africa/Khartoum"],
+    "defaultCalculationMethod": "Egyptian"
   },
   {
-    "code": "AL",
-    "name": "Albania",
+    "code": "SY",
+    "name": "Syria",
     "cityRequired": false,
-    "defaultCity": "tirana",
-    "timezones": ["Europe/Tirane"],
-    "defaultCalculationMethod": "MuslimWorldLeague"
-  },
-  {
-    "code": "BA",
-    "name": "Bosnia and Herzegovina",
-    "cityRequired": false,
-    "defaultCity": "sarajevo",
-    "timezones": ["Europe/Sarajevo"],
-    "defaultCalculationMethod": "MuslimWorldLeague"
-  },
-  {
-    "code": "KG",
-    "name": "Kyrgyzstan",
-    "cityRequired": false,
-    "defaultCity": "bishkek",
-    "timezones": ["Asia/Bishkek"],
-    "defaultCalculationMethod": "MuslimWorldLeague"
-  },
-  {
-    "code": "TM",
-    "name": "Turkmenistan",
-    "cityRequired": false,
-    "defaultCity": "ashgabat",
-    "timezones": ["Asia/Ashgabat"],
+    "defaultCity": "damascus",
+    "timezones": ["Asia/Damascus"],
     "defaultCalculationMethod": "MuslimWorldLeague"
   },
   {
@@ -359,19 +304,74 @@
     "defaultCalculationMethod": "MuslimWorldLeague"
   },
   {
-    "code": "MV",
-    "name": "Maldives",
+    "code": "TN",
+    "name": "Tunisia",
     "cityRequired": false,
-    "defaultCity": "male",
-    "timezones": ["Indian/Maldives"],
+    "defaultCity": "tunis",
+    "timezones": ["Africa/Tunis"],
     "defaultCalculationMethod": "MuslimWorldLeague"
   },
   {
-    "code": "BN",
-    "name": "Brunei",
+    "code": "TR",
+    "name": "Turkey",
     "cityRequired": false,
-    "defaultCity": "bandar-seri-begawan",
-    "timezones": ["Asia/Brunei"],
+    "defaultCity": "istanbul",
+    "timezones": ["Europe/Istanbul"],
+    "defaultCalculationMethod": "Turkey"
+  },
+  {
+    "code": "TM",
+    "name": "Turkmenistan",
+    "cityRequired": false,
+    "defaultCity": "ashgabat",
+    "timezones": ["Asia/Ashgabat"],
+    "defaultCalculationMethod": "MuslimWorldLeague"
+  },
+  {
+    "code": "AE",
+    "name": "United Arab Emirates",
+    "cityRequired": false,
+    "defaultCity": "abu-dhabi",
+    "timezones": ["Asia/Dubai"],
+    "defaultCalculationMethod": "Dubai"
+  },
+  {
+    "code": "GB",
+    "name": "United Kingdom",
+    "cityRequired": false,
+    "defaultCity": "london",
+    "timezones": ["Europe/London"],
+    "defaultCalculationMethod": "MuslimWorldLeague"
+  },
+  {
+    "code": "US",
+    "name": "United States",
+    "cityRequired": true,
+    "defaultCity": null,
+    "timezones": [
+      "America/New_York",
+      "America/Chicago",
+      "America/Denver",
+      "America/Los_Angeles",
+      "America/Anchorage",
+      "Pacific/Honolulu"
+    ],
+    "defaultCalculationMethod": "NorthAmerica"
+  },
+  {
+    "code": "UZ",
+    "name": "Uzbekistan",
+    "cityRequired": false,
+    "defaultCity": "tashkent",
+    "timezones": ["Asia/Tashkent"],
+    "defaultCalculationMethod": "MuslimWorldLeague"
+  },
+  {
+    "code": "YE",
+    "name": "Yemen",
+    "cityRequired": false,
+    "defaultCity": "sanaa",
+    "timezones": ["Asia/Aden"],
     "defaultCalculationMethod": "MuslimWorldLeague"
   }
 ]
