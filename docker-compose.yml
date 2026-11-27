@@ -1,0 +1,11 @@
+services:
+  mudhakkir:
+    build: .
+    container_name: mudhakkir
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - mudhakkir-data:/app/data
+
+volumes:
+  mudhakkir-data:

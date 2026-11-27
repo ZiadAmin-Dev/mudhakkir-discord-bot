@@ -1,0 +1,21 @@
+[Unit]
+Description=Mudhakkir Discord Prayer Reminder Bot
+Documentation=https://github.com/ZiadAmin-Dev/mudhakkir-discord-bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=mudhakkir
+Group=mudhakkir
+WorkingDirectory=/opt/mudhakkir
+EnvironmentFile=/opt/mudhakkir/.env
+ExecStart=/usr/bin/node /opt/mudhakkir/dist/index.js
+Restart=always
+RestartSec=10
+KillSignal=SIGINT
+TimeoutStopSec=40
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
