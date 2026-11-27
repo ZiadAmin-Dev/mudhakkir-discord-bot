@@ -24,7 +24,7 @@ The repository contains a working M1/M2 foundation and an implemented M3 (Locati
 ### Verified now
 
 - `npx tsc --noEmit` passes.
-- `npm test` reports 90 passing tests across 18 files: configuration, DI/composition, Discord client intents, message sender, commands/flows/router, persistence/settings, location, prayer times, scheduling, text announcements, reminder handler, voice announcements, audio assets, and the Location → Prayer Times, Scheduling → Persistence, Scheduler → Text Delivery, Settings → Scheduler Rebuild, and `/test` Isolation integration suites.
+- `npm test` reports 94 passing tests across 19 files: configuration, DI/composition, Discord client intents, message sender, commands/flows/router and command registration, persistence/settings, location, prayer times, scheduling, text announcements, reminder handler, voice announcements, audio assets, and the Location → Prayer Times, Scheduling → Persistence, Scheduler → Text Delivery, Settings → Scheduler Rebuild, and `/test` Isolation integration suites.
 - Migrations create `guild_settings`, `delivery_ledger`, and `schema_migrations`.
 - Settings can be saved, retrieved, partially updated, toggled, deleted, and reject invalid input.
 - Location resolves only countries/cities present in curated JSON, applies default-city and country-level calculation-method rules, and rejects unsupported selections. No external geocoding is used. The curated set covers 46 countries and 134 cities (including Arabic and Muslim-majority regions), with a data-integrity test for codes, timezones, defaults, and city-method overrides.
@@ -291,7 +291,7 @@ Implement Discord slash commands and user interactions: administrator authorizat
 - [x] Non-administrators attempting to invoke configuration commands are rejected with an ephemeral permission error (BR-063, BR-064), using authoritative interaction context rather than user-supplied IDs.
 - [x] `/setup` country and city selection use paginated 25-option select menus populated from `ILocationService.listCountries()` / `listCities()`; option values are canonical codes/IDs, city options are filtered by the chosen country, and no country text normalization or fuzzy search is performed.
 - [x] City choice is optional when Location has a default city ("Use default city" button), and mandatory for `cityRequired` countries such as the USA. Mention target is optional and defaults to `@everyone`; the calculation method comes from Location and is not user-selectable.
-- [x] Text channel and mention role are chosen with Discord's native channel/role pickers — no copied IDs; `DEV_GUILD_ID` enables instant guild-scoped command registration for local testing.
+- [x] Text channel and mention role are chosen with Discord's native channel/role pickers — no copied IDs; commands are always registered globally, and `DEV_GUILD_ID` (comma-separated) adds instant guild-scoped overrides for testing.
 - [x] Location business rules (country existence, required city, default city, city membership, final resolution) are applied only by Location; the Discord layer does not duplicate them or the reference data.
 - [x] Component interactions route to the correct user- and guild-bound active flow; expired, cancelled, wrong-user, and duplicate submissions are contained with an ephemeral notice and no state change.
 - [x] Interactions are acknowledged via reply/defer; configuration flows are ephemeral, `/prayer-times` is public by default (Proposed), and unexpected errors are logged with context without exposing stack traces or database details.

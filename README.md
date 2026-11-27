@@ -50,12 +50,12 @@ See [`Docs/`](./Docs/) for product requirements, business rules, system architec
    ```env
    DISCORD_TOKEN=your-bot-token
    CLIENT_ID=your-application-id
-   DEV_GUILD_ID=your-test-server-id   # optional: instant slash commands in one server
+   DEV_GUILD_ID=your-test-server-id   # optional: instant overrides (comma-separate several servers)
    LOG_LEVEL=debug
    NODE_ENV=development
    ```
 
-   `DEV_GUILD_ID` is optional. Leaving it empty registers commands globally, which can take up to an hour to appear. Setting it to a test server ID registers commands there instantly.
+   Slash commands are **always registered globally**, so they work in every server the bot joins (Discord may cache them for up to an hour). `DEV_GUILD_ID` is optional and adds instant guild-scoped overrides for test servers; comma-separate several IDs if needed.
 
 3. Install dependencies:
 

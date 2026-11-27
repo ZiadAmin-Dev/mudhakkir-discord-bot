@@ -169,7 +169,7 @@ Folder layout follows the convention in [§3](#3-module-public-entry-points): im
 | Scheduling | `src/modules/scheduling/index.ts`, `src/modules/scheduling/event.types.ts`, `src/modules/scheduling/event-builder.ts`, `src/modules/scheduling/delivery-ledger.ts`, `src/modules/scheduling/delivery-ledger-store/index.ts`, `src/modules/scheduling/delivery-ledger-store/delivery-ledger-store.port.ts`, `src/modules/scheduling/delivery-ledger-store/delivery-ledger-store.ts`, `src/modules/scheduling/scheduling-service/index.ts`, `src/modules/scheduling/scheduling-service/scheduling.service.ts` |
 | Reminders | `src/modules/reminders/index.ts`, `src/modules/reminders/reminders.errors.ts`, `src/modules/reminders/reminder-handler/index.ts`, `src/modules/reminders/reminder-handler/reminder-handler.ts`, `src/modules/reminders/text/index.ts`, `src/modules/reminders/text/text-message-sender.port.ts`, `src/modules/reminders/text/text-message.builder.ts`, `src/modules/reminders/text/text-announcement.service.ts`, `src/modules/reminders/voice/index.ts`, `src/modules/reminders/voice/voice-channels.port.ts`, `src/modules/reminders/voice/channel-eligibility.ts`, `src/modules/reminders/voice/voice-cycle.ts`, `src/modules/reminders/voice/voice-coordinator.ts`, `src/modules/reminders/voice/voice-announcement.service.ts` |
 | Audio | `assets/audio/*.pcm`, `src/infrastructure/audio/audio-library.ts`, `src/infrastructure/audio/audio-player.ts`, `src/infrastructure/audio/index.ts`, `scripts/generate-audio-assets.mjs` |
-| Tests | `test/unit/config.test.ts`, `test/unit/di-container.test.ts`, `test/unit/discord-client.test.ts`, `test/unit/discord/discord-messages.test.ts`, `test/unit/location/location.test.ts`, `test/unit/prayer-times/prayer-times.test.ts`, `test/unit/scheduling/scheduling.test.ts`, `test/unit/reminders/text-announcement.test.ts`, `test/unit/reminders/reminder-handler.test.ts`, `test/unit/reminders/voice.test.ts`, `test/unit/audio/audio-library.test.ts`, `test/integration/persistence.test.ts`, `test/integration/location-prayer-times.test.ts`, `test/integration/scheduling-persistence.test.ts`, `test/integration/scheduled-text-delivery.test.ts` |
+| Tests | `test/unit/config.test.ts`, `test/unit/di-container.test.ts`, `test/unit/discord-client.test.ts`, `test/unit/discord/discord-messages.test.ts`, `test/unit/discord/m7-commands.test.ts`, `test/unit/discord/register-commands.test.ts`, `test/unit/location/location.test.ts`, `test/unit/prayer-times/prayer-times.test.ts`, `test/unit/scheduling/scheduling.test.ts`, `test/unit/reminders/text-announcement.test.ts`, `test/unit/reminders/reminder-handler.test.ts`, `test/unit/reminders/voice.test.ts`, `test/unit/audio/audio-library.test.ts`, `test/integration/persistence.test.ts`, `test/integration/location-prayer-times.test.ts`, `test/integration/scheduling-persistence.test.ts`, `test/integration/scheduled-text-delivery.test.ts`, `test/integration/settings-rebuild.test.ts`, `test/integration/test-command-isolation.test.ts` |
 
 Everything else in the tree is planned. In particular, the remaining M8 hardening and deployment files do not exist yet. The Location module is implemented with its reference data as files, not database tables or migrations. The scheduler's due-event callback is the reminder handler, which routes text and voice independently.
 
@@ -386,7 +386,7 @@ The exact lint or dependency-checking tool is **Open**. The rules must be enforc
 
 ## 6. Testing layout and dependency mocking
 
-**Current status:** the existing suite has 18 test files and reports 90 passing tests. `npx tsc --noEmit` passes. Tests use the Node.js built-in test runner (`node --test`) with TypeScript support via `tsx`.
+**Current status:** the existing suite has 19 test files and reports 94 passing tests. `npx tsc --noEmit` passes. Tests use the Node.js built-in test runner (`node --test`) with TypeScript support via `tsx`.
 
 ### Test directory layout:
 
@@ -399,6 +399,7 @@ The exact lint or dependency-checking tool is **Open**. The rules must be enforc
   - `scheduling/scheduling.test.ts` — Event generation, lead-time math, past-event filtering, DST calendar horizon, ledger semantics, fake-clock dispatch, late-event skip, fail-closed commits, and rebuild-on-change.
   - `discord/discord-messages.test.ts` — Channel resolution, permission checks, exact payload, and named delivery errors.
   - `discord/m7-commands.test.ts` — Authorization, router flow ownership/expiry, 25-option pagination, canonical select-menu setup, command handlers, and settings change callback.
+  - `discord/register-commands.test.ts` — Global registration always present; dev guild overrides added from `DEV_GUILD_ID` (comma-separated).
   - `reminders/text-announcement.test.ts` — Both mention modes and failure containment.
   - `reminders/reminder-handler.test.ts` — Event routing, fresh snapshots, disabled/missing settings, and error boundaries.
   - `voice.test.ts` — Eligibility rules, pre-join recheck, failure isolation, per-guild lock, and disabled/overlapping cycles.

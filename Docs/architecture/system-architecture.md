@@ -50,7 +50,7 @@ The current source tree is a foundation, not the complete design below:
 | Announcements | **Text, voice, and `/test` implemented.** Due events deliver text with exact mentions; approaching events run a sequential voice cycle with a per-guild lock. Tests are labelled and do not ping. Live Discord playback remains unverified. |
 | Shutdown | **Partially implemented.** The scheduler is stopped first, then the Discord client is destroyed on `SIGINT`/`SIGTERM`; voice and database teardown arrive with their components. |
 
-`npx tsc --noEmit` passes and the current test suite reports 90 passing tests. The [implementation roadmap](../development/implementation-roadmap.md) tracks milestone status and known gaps.
+`npx tsc --noEmit` passes and the current test suite reports 94 passing tests. The [implementation roadmap](../development/implementation-roadmap.md) tracks milestone status and known gaps.
 
 ## 2. Layered Architecture & Module Map
 
@@ -197,7 +197,7 @@ Scheduling has no import of text or voice; it receives a due-event callback at c
 2. **Initialize logging.** Create the logger before any component that can fail.
 3. **Build the composition root.** Construct adapters and services without performing network or storage work. Current code opens SQLite and runs migrations here; Discord login happens later.
 4. **Load settings.** Validate stored records via `SettingsService.listSettings()`. Invalid/disabled configurations are excluded from schedules and logged.
-5. **Connect to Discord and register commands.** Connecting even with an invalid configuration allows an administrator to repair it. Slash commands are registered globally or per guild via `DEV_GUILD_ID` (implemented in M7).
+5. **Connect to Discord and register commands.** Connecting even with an invalid configuration allows an administrator to repair it. Slash commands are always registered globally; `DEV_GUILD_ID` (comma-separated list supported) adds instant per-guild overrides for test servers (implemented in M7).
 6. **Rebuild schedules (implemented).** On `ClientReady`, the scheduler builds events for each valid, enabled guild, drops triggers passed while offline, excludes ledger keys, and arms the next timer (FR-081, FR-082, BR-044, BR-045).
 7. **Signal readiness.** The scheduler owns the next timer; no other module starts recurring timers.
 
