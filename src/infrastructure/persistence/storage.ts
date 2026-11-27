@@ -21,6 +21,14 @@ export function createDatabase(dbPath: string, logger?: Logger): DatabaseType {
   return db;
 }
 
+export function closeDatabase(db: DatabaseType): void {
+  if (!db.open) {
+    return;
+  }
+  db.pragma('wal_checkpoint(TRUNCATE)');
+  db.close();
+}
+
 export function runMigrations(db: DatabaseType, migrationsDir: string, logger?: Logger): void {
   db.exec(`
     CREATE TABLE IF NOT EXISTS schema_migrations (

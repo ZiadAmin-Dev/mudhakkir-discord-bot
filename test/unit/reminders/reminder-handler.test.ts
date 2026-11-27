@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { InMemoryTaskTracker } from '../../../src/shared/lifecycle/task-tracker.js';
 import { PrayerName } from '../../../src/modules/prayer-times/index.js';
 import { PrayerEvent } from '../../../src/modules/scheduling/index.js';
 import { GuildSettings, ISettingsService } from '../../../src/modules/settings/index.js';
@@ -89,7 +90,7 @@ describe('Reminder handler (Milestone 5)', () => {
   it('dispatches a reached event with a fresh settings snapshot', async () => {
     const settingsService = new FakeSettingsService();
     const text = new FakeTextService();
-    new ReminderHandler(settingsService, text, new FakeVoiceService()).handle(makeEvent('PRAYER_TIME_REACHED', 'asr'));
+    new ReminderHandler(settingsService, text, new FakeVoiceService(), new InMemoryTaskTracker()).handle(makeEvent('PRAYER_TIME_REACHED', 'asr'));
     await Promise.resolve();
 
     assert.deepEqual(
@@ -102,7 +103,7 @@ describe('Reminder handler (Milestone 5)', () => {
   it('routes approaching events to voice and leaves text untouched', async () => {
     const text = new FakeTextService();
     const voice = new FakeVoiceService();
-    new ReminderHandler(new FakeSettingsService(), text, voice).handle(makeEvent('PRAYER_APPROACHING', 'asr'));
+    new ReminderHandler(new FakeSettingsService(), text, voice, new InMemoryTaskTracker()).handle(makeEvent('PRAYER_APPROACHING', 'asr'));
     await Promise.resolve();
 
     assert.equal(text.calls.length, 0);
@@ -112,7 +113,7 @@ describe('Reminder handler (Milestone 5)', () => {
   it('skips events without enabled settings', async () => {
     const settingsService = new FakeSettingsService();
     const text = new FakeTextService();
-    const handler = new ReminderHandler(settingsService, text, new FakeVoiceService());
+    const handler = new ReminderHandler(settingsService, text, new FakeVoiceService(), new InMemoryTaskTracker());
 
     settingsService.current = null;
     handler.handle(makeEvent('PRAYER_TIME_REACHED'));
@@ -126,7 +127,7 @@ describe('Reminder handler (Milestone 5)', () => {
   it('contains settings read failures and text delivery failures', async () => {
     const settingsService = new FakeSettingsService();
     const text = new FakeTextService();
-    const handler = new ReminderHandler(settingsService, text, new FakeVoiceService());
+    const handler = new ReminderHandler(settingsService, text, new FakeVoiceService(), new InMemoryTaskTracker());
 
     settingsService.throwOnRead = true;
     handler.handle(makeEvent('PRAYER_TIME_REACHED')); // must not throw

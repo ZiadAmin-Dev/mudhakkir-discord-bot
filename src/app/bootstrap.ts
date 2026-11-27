@@ -3,6 +3,8 @@ import { AppConfig } from './config.js';
 import { Logger } from '../shared/logging/logger.port.js';
 import { setupGracefulShutdown } from './shutdown.js';
 import { registerSlashCommands } from '../discord/register-commands.js';
+import type { Database as DatabaseType } from 'better-sqlite3';
+import { TaskTracker } from '../shared/lifecycle/task-tracker.js';
 import { ISchedulingService } from '../modules/scheduling/index.js';
 
 export interface BootstrapResult {
@@ -14,9 +16,18 @@ export async function bootstrap(
   config: AppConfig,
   logger: Logger,
   client: Client,
-  scheduler?: ISchedulingService
+  scheduler?: ISchedulingService,
+  tracker?: TaskTracker,
+  database?: DatabaseType
 ): Promise<BootstrapResult> {
-  setupGracefulShutdown(client, logger, scheduler);
+  setupGracefulShutdown({
+    client,
+    logger,
+    scheduler,
+    tracker,
+    database,
+    graceMs: config.SHUTDOWN_GRACE_MS
+  });
 
   return new Promise((resolve, reject) => {
     client.once(Events.ClientReady, async (readyClient) => {

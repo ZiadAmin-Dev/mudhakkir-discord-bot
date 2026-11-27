@@ -14,4 +14,6 @@ export interface Logger {
   info: LogMethod;
   debug: LogMethod;
   trace: LogMethod;
+  /** Flush buffered output before process exit when the implementation supports it. */
+  flush?: () => void;
 }

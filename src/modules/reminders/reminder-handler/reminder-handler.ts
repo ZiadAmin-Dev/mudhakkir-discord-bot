@@ -8,6 +8,7 @@ boundaries; neither awaits or controls the other.
 import { injectable, inject } from 'tsyringe';
 import { TOKENS } from '../../../shared/di/tokens.js';
 import { Logger } from '../../../shared/logging/logger.port.js';
+import { TaskTracker } from '../../../shared/lifecycle/task-tracker.js';
 import { PrayerEvent } from '../../scheduling/index.js';
 import { ISettingsService } from '../../settings/index.js';
 import { ITextAnnouncementService } from '../text/index.js';
@@ -23,6 +24,7 @@ export class ReminderHandler implements IReminderHandler {
     @inject(TOKENS.SettingsService) private readonly settingsService: ISettingsService,
     @inject(TOKENS.TextAnnouncementService) private readonly textService: ITextAnnouncementService,
     @inject(TOKENS.VoiceAnnouncementService) private readonly voiceService: IVoiceAnnouncementService,
+    @inject(TOKENS.TaskTracker) private readonly tracker: TaskTracker,
     @inject(TOKENS.Logger) private readonly logger?: Logger
   ) {}
 
@@ -41,14 +43,18 @@ export class ReminderHandler implements IReminderHandler {
     }
 
     if (event.eventType === 'PRAYER_APPROACHING') {
-      void this.voiceService.runCycle(event.prayer, settings).catch((error: unknown) => {
-        this.logger?.error({ eventKey: event.eventKey, err: error }, 'Voice cycle failed');
-      });
+      this.tracker.track(
+        this.voiceService.runCycle(event.prayer, settings).catch((error: unknown) => {
+          this.logger?.error({ eventKey: event.eventKey, err: error }, 'Voice cycle failed');
+        })
+      );
       return;
     }
 
-    void this.textService.send(event.prayer, settings).catch((error: unknown) => {
-      this.logger?.error({ eventKey: event.eventKey, err: error }, 'Reminder dispatch failed');
-    });
+    this.tracker.track(
+      this.textService.send(event.prayer, settings).catch((error: unknown) => {
+        this.logger?.error({ eventKey: event.eventKey, err: error }, 'Reminder dispatch failed');
+      })
+    );
   }
 }

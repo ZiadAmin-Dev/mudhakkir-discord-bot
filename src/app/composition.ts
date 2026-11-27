@@ -37,6 +37,7 @@ import {
 import { ILocationService, LocationService } from '../modules/location/index.js';
 import { IPrayerTimesService, PrayerTimesService } from '../modules/prayer-times/index.js';
 import { SystemClock, Clock } from '../shared/clock.js';
+import { InMemoryTaskTracker, TaskTracker } from '../shared/lifecycle/task-tracker.js';
 import {
   DeliveryLedger,
   DeliveryLedgerStore,
@@ -95,8 +96,9 @@ export function initContainer(
   const client = createDiscordClient(logger);
   di.registerInstance(TOKENS.DiscordClient, client);
 
-  // 6. Clock
+  // 6. Clock and in-flight task tracking
   di.registerInstance<Clock>(TOKENS.Clock, new SystemClock());
+  di.registerSingleton(TOKENS.TaskTracker, InMemoryTaskTracker);
 
   // 7. Stores & Services (Singletons)
   di.registerSingleton(TOKENS.SettingsStore, SettingsStore);

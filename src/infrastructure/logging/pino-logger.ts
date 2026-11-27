@@ -23,5 +23,7 @@ export function createLogger(logLevel: keyof Logger = 'info', isDevelopment: boo
     });
   }
 
-  return logger as unknown as Logger;
+  const wrapped = logger as unknown as Logger;
+  wrapped.flush = () => logger.flush();
+  return wrapped;
 }

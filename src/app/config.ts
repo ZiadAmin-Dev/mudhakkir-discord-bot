@@ -22,7 +22,8 @@ export const EnvSchema = z.object({
   DEV_GUILD_ID: z
     .string()
     .optional()
-    .transform((value) => (value?.trim() ? value.trim() : undefined))
+    .transform((value) => (value?.trim() ? value.trim() : undefined)),
+  SHUTDOWN_GRACE_MS: z.coerce.number().int().min(0).default(10_000)
 });
 
 export type AppConfig = z.infer<typeof EnvSchema>;

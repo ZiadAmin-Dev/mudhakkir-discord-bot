@@ -5,6 +5,7 @@ export const TOKENS = {
   Database: Symbol.for('Database'),
   DiscordClient: Symbol.for('DiscordClient'),
   Clock: Symbol.for('Clock'),
+  TaskTracker: Symbol.for('TaskTracker'),
 
   // Persistence Stores
   SettingsStore: Symbol.for('SettingsStore'),

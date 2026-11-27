@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Clock } from '../../src/shared/clock.js';
+import { InMemoryTaskTracker } from '../../src/shared/lifecycle/task-tracker.js';
 import { createDatabase, runMigrations } from '../../src/infrastructure/persistence/storage.js';
 import {
   CreateGuildSettingsInput,
@@ -74,7 +75,7 @@ describe('Scheduler → reminder handler → text delivery (Milestone 5)', () =>
 
     const clock = new FakeClock(new Date('2026-11-25T00:00:00.000Z'));
     const sender = new FakeSender();
-    const handler = new ReminderHandler(settingsService, new TextAnnouncementService(sender));
+    const handler = new ReminderHandler(settingsService, new TextAnnouncementService(sender), { runCycle: async () => {} }, new InMemoryTaskTracker());
     const scheduler = new SchedulingService(
       settingsService,
       new PrayerTimesService(),
@@ -128,7 +129,7 @@ describe('Scheduler → reminder handler → text delivery (Milestone 5)', () =>
       new DeliveryLedger(new DeliveryLedgerStore(db), clock),
       clock,
       (event: PrayerEvent) =>
-        new ReminderHandler(settingsService, new TextAnnouncementService(sender)).handle(event)
+        new ReminderHandler(settingsService, new TextAnnouncementService(sender), { runCycle: async () => {} }, new InMemoryTaskTracker()).handle(event)
     );
 
     try {

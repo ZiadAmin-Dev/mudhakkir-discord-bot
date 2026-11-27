@@ -49,6 +49,21 @@ describe('App Configuration (Milestone 1)', () => {
     assert.equal(set.DEV_GUILD_ID, '123456789');
   });
 
+  it('should coerce SHUTDOWN_GRACE_MS and default it to 10 seconds', () => {
+    const minimal = loadConfig({
+      DISCORD_TOKEN: 'token_abc',
+      CLIENT_ID: 'client_xyz'
+    } as unknown as NodeJS.ProcessEnv);
+    assert.equal(minimal.SHUTDOWN_GRACE_MS, 10_000);
+
+    const configured = loadConfig({
+      DISCORD_TOKEN: 'token_abc',
+      CLIENT_ID: 'client_xyz',
+      SHUTDOWN_GRACE_MS: '2500'
+    } as unknown as NodeJS.ProcessEnv);
+    assert.equal(configured.SHUTDOWN_GRACE_MS, 2_500);
+  });
+
   it('should throw an informative error when DISCORD_TOKEN is missing', () => {
     const invalidEnv = {
       CLIENT_ID: 'client_xyz'
