@@ -1,8 +1,9 @@
 /*
 Slash command registration.
-Explain: Discord-side definition of the command surface. Server-side
-authorization remains authoritative; default_member_permissions only hides
-commands in Discord's UI.
+Explain: Global commands are always registered so the bot works in every guild
+it is invited to. DEV_GUILD_ID (optionally comma-separated) adds guild-scoped
+overrides that appear instantly in test servers. Server-side authorization
+remains authoritative; default_member_permissions only hides commands in UI.
 */
 
 import { PermissionFlagsBits, REST, Routes, SlashCommandBuilder } from 'discord.js';
@@ -65,14 +66,42 @@ export function buildSlashCommands() {
   return [setup, prayerTimes, settings, test, enable, disable];
 }
 
+export interface RegistrationTarget {
+  scope: 'global' | 'guild';
+  guildId?: string;
+}
+
+/** Global commands work in every guild; dev guilds get instant overrides. */
+export function registrationTargets(guildIds?: string): RegistrationTarget[] {
+  const targets: RegistrationTarget[] = [{ scope: 'global' }];
+  for (const guildId of (guildIds ?? '').split(',')) {
+    const trimmed = guildId.trim();
+    if (trimmed) {
+      targets.push({ scope: 'guild', guildId: trimmed });
+    }
+  }
+  return targets;
+}
+
 export async function registerSlashCommands(
   clientId: string,
   token: string,
   logger?: Logger,
-  guildId?: string
+  guildIds?: string
 ): Promise<void> {
   const rest = new REST({ version: '10' }).setToken(token);
-  const route = guildId ? Routes.applicationGuildCommands(clientId, guildId) : Routes.applicationCommands(clientId);
-  await rest.put(route, { body: buildSlashCommands().map((command) => command.toJSON()) });
-  logger?.info({ scope: guildId ? 'guild' : 'global', guildId }, 'Slash commands registered');
+  const body = buildSlashCommands().map((command) => command.toJSON());
+
+  for (const target of registrationTargets(guildIds)) {
+    const route =
+      target.scope === 'global'
+        ? Routes.applicationCommands(clientId)
+        : Routes.applicationGuildCommands(clientId, target.guildId!);
+    try {
+      await rest.put(route, { body });
+      logger?.info({ scope: target.scope, guildId: target.guildId }, 'Slash commands registered');
+    } catch (error) {
+      logger?.error({ scope: target.scope, guildId: target.guildId, err: error }, 'Slash command registration failed');
+    }
+  }
 }
