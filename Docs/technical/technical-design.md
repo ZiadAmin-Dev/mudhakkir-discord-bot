@@ -42,7 +42,7 @@ Status labels follow the [documentation conventions](../README.md#status-labels)
 ## 2. Location & Timezone
 
 ### Country & City Selection
-- **Status:** Location resolution is **implemented** (M3). The Prayer Times deliverables in this section remain planned.
+- **Status:** Location resolution and Prayer Times are **implemented** (M3).
 - **MVP Strategy (Implemented for Location):** Curated reference data only. `src/modules/location/data/countries.json` and `cities.json` hold supported countries (`cityRequired`, nullable `defaultCity`, IANA `timezones`, default calculation method) and their cities (coordinates, IANA timezone, nullable calculation-method override). All city `calculationMethod` values are currently `null`, so the country-level `defaultCalculationMethod` is authoritative; for example, UAE uses `Dubai` and the United States uses `NorthAmerica`. The JSON is reviewed as trusted reference data and is not validated at load time; it is never stored in SQLite. Zod validation in the module applies to resolved output only.
 - **Unsupported locations:** Only countries and cities present in the JSON files can be resolved. Unknown or unsupported selections are rejected with the module's named error; there is no external geocoding fallback for now.
 - **Deferred:** an external geocoding provider (for example Nominatim, Mapbox, or Open-Meteo) is not needed for the initial release and is not implemented. Location selection uses curated data and canonical-code select menus.
@@ -224,7 +224,7 @@ Durable deduplication store preventing duplicate text and voice announcements:
   - Mention type: `everyone` or `role`; a role ID is required when `role` is selected
   - Lead time: integer between 1 and 60 minutes
   - Required text and guild identifiers: non-empty strings
-- **Planned validation:** snowflake format checks, text-channel existence in the guild cache, and role existence in the guild cache. These checks require Discord context and belong with the command/setup layer rather than the persistence schema.
+- **Implemented presentation validation:** the setup flow checks that the selected text channel exists and is text-based via `guild.channels.fetch`; roles are chosen with Discord's native role picker so their existence is guaranteed by the UI. No separate snowflake regex is used — the canonical IDs come from Discord components. These checks stay in the Discord layer, not the persistence schema.
 
 ### Dependency Injection: `tsyringe`
 - **Status:** **Implemented**
@@ -236,7 +236,7 @@ Durable deduplication store preventing duplicate text and voice announcements:
 - **Tokens (`src/shared/di/tokens.ts`):** `TOKENS` symbol registry ensures type-safe, decoupled token-based resolution.
 
 ### Error Handling: `AppError` Hierarchy
-- **Status:** **Implemented** for the core error model; command and announcement boundaries are planned.
+- **Status:** **Implemented**: core error model plus command/router, scheduler, reminder, and voice-channel boundaries.
 - **Rationale:**
   - Distinguishes operational/expected domain errors (`isOperational: true`) from unhandled system crashes (`isOperational: false`).
   - Base class `AppError` (`src/shared/error/app-error.ts`) carries a stable error `code` and safe user-facing message.
@@ -266,17 +266,17 @@ Feature areas define their own error meanings as constant instances in an area-o
 | **Prayer Calculation** | `adhan` library | **Implemented** (M3) | In-process astronomical calculations; zero runtime network dependencies. |
 | **Default Calculation Method** | Egyptian General Authority of Survey | **Confirmed** (FR-003) | Standard for Egypt and Arab region. |
 | **Location reference data** | Curated JSON countries/cities only | **Implemented** (M3 Location) | Deterministic and offline; unsupported selections are rejected. |
-| **Timezone & DST** | IANA timezone strings from curated data, validated via Node `Intl` | **Confirmed** (BR-040) | Immune to DST shifts and local server OS clock offsets. Current settings/location validation uses `Intl`; calculation is pending. |
+| **Timezone & DST** | IANA timezone strings from curated data, validated via Node `Intl` | **Implemented** (M3/M4) | Immune to DST shifts and local server OS clock offsets; calculation, formatting, and the scheduling horizon use IANA calendar dates. |
 | **Scheduling Engine** | In-process dynamic `setTimeout` + periodic heartbeat | **Implemented** (M4) | Lightweight, rebuildable on restart; no Redis/job queue required. |
 | **Duplicate Prevention** | `delivery_ledger` SQLite table (commit-before-dispatch) | **Implemented** | Module-owned adapter and commit-before-dispatch are implemented; policy confirmed in M4.1. |
-| **Discord Library** | `discord.js` v14 | **Implemented** (gateway client) | Client and required intents exist; commands and voice integration are planned. |
+| **Discord Library** | `discord.js` v14 | **Implemented** (M1/M7) | Gateway client, slash commands, component interactions, and message/voice adapters exist. |
 | **Administrator Auth** | `ManageGuild` or `Administrator` permission check | **Proposed** | Verified server-side on interaction before processing. |
 | **Voice Library** | `@discordjs/voice` + `opusscript` | **Implemented** (M6) | Official Discord voice package; pure-JS Opus encoder avoids a vulnerable native download chain. |
 | **Local Audio Format** | 48kHz stereo s16le PCM files | **Implemented** (M6) | Played with `StreamType.Raw`; no ffmpeg or transcoding step. Placeholder assets; OGG/Opus remains a future upgrade. |
 | **Sequential Voice** | Per-guild in-process lock (`VoiceCoordinator`) | **Confirmed** (BR-020) | Max 1 active voice channel per guild; rechecks eligibility before join. |
 | **Database** | SQLite via `better-sqlite3` | **Implemented** (M2) | Fast, synchronous, single-file ACID persistence. |
 | **Dependency Injection** | `tsyringe` + centralized `TOKENS` | **Implemented** | Constructor injection with leaf-level tokens; decoupled composition. |
-| **Error Handling** | `AppError` domain hierarchy | **Implemented** (core) | Operational error flags (`isOperational: true`) and error codes; feature boundaries planned. |
+| **Error Handling** | `AppError` domain hierarchy | **Implemented** | Operational error flags and codes; feature boundaries catch and contain failures. |
 | **Validation** | `zod` | **Implemented** | Type-safe runtime schema validation for configs and inputs. |
 | **Logging** | `pino` | **Implemented** | Structured JSON logs with context bindings; zero bloat. |
 
@@ -294,7 +294,7 @@ The following recommendations are **Proposed** and require explicit confirmation
 6. **Lead Time Constraint:** Approve restricting voice announcement lead time to an integer between 1 and 60 minutes (default 10 minutes).
 7. **Scheduler Implementation:** Implemented in M4.2 as a single in-process `setTimeout` timer with a rebuild-on-change policy and heartbeat; no polling or job queue.
 
-SQLite through `better-sqlite3`, `discord.js` v14, `tsyringe`, `zod`, `pino`, `adhan`, and the `AppError` hierarchy are no longer approval items: they are present in the current source tree (see section 8). Prayer calculation uses the Standard Asr rule application-wide; no per-guild variation is planned. A migration-copy deployment step still needs review before production builds.
+SQLite through `better-sqlite3`, `discord.js` v14, `tsyringe`, `zod`, `pino`, `adhan`, and the `AppError` hierarchy are no longer approval items: they are present in the current source tree (see section 8). Prayer calculation uses the Standard Asr rule application-wide; no per-guild variation is planned. The build script already copies SQL migrations into `dist/infrastructure/persistence/migrations`.
 
 ## 10. Known Implementation Gaps
 
@@ -302,6 +302,6 @@ Recorded from the current source tree; these must be closed before the affected 
 
 | Gap | Impact | Related milestone |
 | --- | --- | --- |
-| Live Discord voice playback is unverified; audio assets are placeholder tones, and `/test` awaits M7. | Voice behavior is verified offline with fakes only; no real recitations or safe test command yet. | M7/M8 |
+| Live Discord voice playback is unverified and audio assets are placeholder tones. | Voice behavior and `/test` isolation are verified offline with fakes and real SQLite; no real recitations yet. | M8 |
 | `unhandledRejection` is logged but does not terminate the process. | Process may continue in an unknown state, contrary to the documented target. | M8 |
 | No live Discord login verification recorded. | Connection code exists and unit tests pass, but gateway authentication is unverified. | M1/M8 |
