@@ -50,7 +50,7 @@ The current source tree is a foundation, not the complete design below:
 | Announcements | **Text, voice, and `/test` implemented.** Due events deliver text with exact mentions; approaching events run a sequential voice cycle with a per-guild lock. Tests are labelled and do not ping. Live Discord playback remains unverified. |
 | Shutdown | **Partially implemented.** The scheduler is stopped first, then the Discord client is destroyed on `SIGINT`/`SIGTERM`; voice and database teardown arrive with their components. |
 
-`npx tsc --noEmit` passes and the current test suite reports 94 passing tests. The [implementation roadmap](../development/implementation-roadmap.md) tracks milestone status and known gaps.
+`npx tsc --noEmit` passes and the current test suite reports 101 passing tests. The [implementation roadmap](../development/implementation-roadmap.md) tracks milestone status and known gaps.
 
 ## 2. Layered Architecture & Module Map
 
@@ -187,9 +187,9 @@ Scheduling has no import of text or voice; it receives a due-event callback at c
 **Current implemented sequence:**
 
 1. `src/index.ts` loads `.env` and `reflect-metadata`, then validates environment configuration.
-2. `initContainer` creates the logger, opens SQLite, runs pending migrations, and registers the database, Discord client, settings store, and settings service.
-3. `bootstrap` installs process signal handlers, logs in to Discord, and resolves on `ClientReady`.
-4. Guild settings are not loaded, commands are not registered, and no scheduler is started yet.
+2. `initContainer` creates the logger, opens SQLite, runs pending migrations, and registers all stores, services, the clock, and the task tracker.
+3. `bootstrap` installs process signal/fatal handlers, logs in to Discord, and resolves on `ClientReady`.
+4. On `ClientReady` the scheduler rebuilds from persisted settings, slash commands are registered globally (plus dev-guild overrides), and no separate settings-loading step is needed — `SchedulingService.rebuild()` reads settings through `SettingsService`.
 
 **Target sequence (not yet fully implemented):**
 
@@ -239,18 +239,18 @@ sequenceDiagram
 
 ### 4.2 Shutdown
 
-**Current implemented behavior:** `SIGINT` and `SIGTERM` stop the scheduler first, then destroy the Discord client, log the result, and exit. A second signal forces exit. Voice cleanup and database close are not present yet.
+**Current implemented behavior:** one idempotent shutdown path handles `SIGINT`, `SIGTERM`, `unhandledRejection`, and `uncaughtException`: stop the scheduler, drain tracked in-flight deliveries with a bounded grace period, destroy the Discord client, checkpoint and close SQLite, flush logs, then exit (0 for signals, 1 for fatal errors). A second signal forces exit.
 
 **Target sequence:**
 
 1. Stop accepting new command work and stop the scheduler from dispatching new events.
 2. Cancel the next-event timer.
-3. Allow in-flight announcements a bounded grace period. The grace period and forced-stop behavior remain **Open**; the scheduler itself refuses new dispatches immediately.
-4. Attempt to leave any active voice channel and close voice connections.
-5. Flush and close persistence.
+3. Allow in-flight announcements a bounded grace period (`SHUTDOWN_GRACE_MS`, default 10 s); the scheduler refuses new dispatches immediately. Implemented via `TaskTracker`.
+4. Destroy the Discord client; the voice transport's `finally` already closes active connections.
+5. Checkpoint and close persistence via `closeDatabase()`.
 6. Flush logs and exit.
 
-Shutdown must be idempotent. A crash cannot be graceful, so recovery relies on persisted settings, the delivery ledger, and rebuilding the schedule on the next start. Current shutdown stops the scheduler before destroying the Discord client; draining in-flight voice cycles is not implemented yet.
+Shutdown is idempotent. A hard crash cannot be graceful, so recovery relies on persisted settings, the delivery ledger, and rebuilding the schedule on the next start.
 
 ### 4.3 Reconnection
 
@@ -374,13 +374,13 @@ Scheduling converts prayer instants into two events per prayer occurrence:
 
 The scheduler owns all timers for future prayer events. There are no ad hoc recurring timers in command handlers or announcement modules.
 
-**Duplicate prevention:** true exactly-once delivery is not achievable across a crash and a non-idempotent Discord send. A policy decision is required. The **Proposed** approach is to persist a handled-event key **before** dispatching, which favors "no duplicate" over "guaranteed delivery" when a crash occurs at the wrong moment. The opposite ordering risks duplicates. The commit ordering, behavior when the ledger write fails, and any recovery policy are **Open**.
+**Duplicate prevention:** true exactly-once delivery is not achievable across a crash and a non-idempotent Discord send. The **Confirmed and implemented** approach persists a handled-event key **before** dispatching, favoring "no duplicate" over "guaranteed delivery". A failed ledger write is fail-closed: the event is skipped and logged.
 
 ### 6.4 Due-event dispatch
 
 The reminder handler loads the current settings snapshot and starts the appropriate path. If the snapshot is missing, invalid, or disabled, it logs the condition and sends nothing. It must not serialize text behind a long-running voice cycle. Failures in one path are caught, logged, and do not cancel the other.
 
-**Implemented:** the handler dispatches text and voice without awaiting either path; the scheduler arms the next event independently. Tracking and draining in-flight work during shutdown remain Open.
+**Implemented:** the handler dispatches text and voice without awaiting either path; the scheduler arms the next event independently. In-flight work is tracked and drained with a bounded grace period during shutdown.
 
 ## 7. Announcement paths
 
@@ -478,7 +478,7 @@ SQLite is the selected MVP storage technology. The delivery-ledger commit orderi
 
 ## 9. Logging and error handling
 
-**Implementation status: core implemented, feature boundaries pending.** `AppError`, the Pino logger, and process signal handling exist. Command, scheduler, reminder, and voice error boundaries arrive with those features.
+**Implementation status: implemented.** `AppError`, the Pino logger, all feature error boundaries, and process-level fatal handlers exist. Live verification remains manual.
 
 ### 9.1 Standardized Error Model (`AppError`)
 
@@ -509,7 +509,7 @@ Error boundaries:
 | Voice channel iteration | Catch per channel, cleanly disconnect, continue to next eligible channel. |
 | Audio playback | Fail the current channel, not the application or text path. |
 | Persistence | Report failure, keep previous in-memory state authoritative where possible. |
-| Process | **Current behavior:** unhandled rejections are logged and the process continues; uncaught exceptions are logged and the process exits. The target remains to avoid continuing in an unknown state. |
+| Process | Implemented: unhandled rejections and uncaught exceptions are logged with full context and routed through graceful shutdown with exit code 1; signals exit 0. |
 
 No tokens, secrets, or sensitive message contents are logged. No error is silently swallowed.
 
@@ -549,7 +549,7 @@ The following should be investigated and recorded, likely as ADRs or technical d
 - External geocoding provider (deferred; Location is curated-data-only) and the privacy-classification rule — **implemented as Proposed**: private means `@everyone` cannot view.
 - Stage channel, AFK channel, and no-eligible-channel behavior; the current adapter considers only `GuildVoice` channels.
 - Overlapping voice cycles — **implemented as Proposed**: skip the second cycle; `/test` shares the real lock, with a separate test lock still Open.
-- In-flight behavior for configuration changes, disabling, and shutdown.
+- In-flight behavior for configuration changes and disabling (shutdown draining is implemented via `TaskTracker`).
 - Setup-draft persistence and the exact command registration and authorization model.
 - Logging destination, retention, and alerting expectations.
 - A production build step that copies SQL migrations into `dist`, because `tsc` does not copy `.sql` files.

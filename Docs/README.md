@@ -61,10 +61,11 @@ Nothing in the documentation should be read as a finalized product choice unless
 | [`technical/technical-design.md`](technical/technical-design.md) | Practical technical decisions, library choices, scheduling engine, Discord integration, voice pipeline, persistence schema, validation, and logging for the MVP, with implementation status where code exists. |
 | [`technical/scheduling-design.md`](technical/scheduling-design.md) | M4.1 study of scheduler/timer/cron, one-shot events, event-driven design, `setTimeout` limits, DST, multi-guild scheduling, event lifecycle, restart recovery, and the proposed minimal M4.2 design. |
 | [`development/implementation-roadmap.md`](development/implementation-roadmap.md) | Practical 8-milestone implementation plan for the MVP, including the current implementation baseline, remaining milestones, and known gaps. |
+| [`operations/backup-and-recovery.md`](operations/backup-and-recovery.md) | What to back up, safe SQLite/WAL backup procedures, restore steps, and a suggested retention schedule. |
 
 ## Current implementation status
 
-The repository now contains a partial TypeScript implementation, not only documentation:
+The repository contains a complete TypeScript MVP implementation:
 
 - **M1 foundation implemented:** environment validation, Pino logging, dependency injection, Discord client creation, and graceful shutdown wiring.
 - **M2 foundation implemented:** SQLite connection and migrations, guild settings schema, settings store/service, and validation. The settings store is owned by the settings module while the shared database connection and migrations stay in `infrastructure/persistence/`; all modules use the same SQLite database. `SettingsService` depends on abstractions (`ISettingsStore` port and shared `Logger` contract), and restart durability is verified by a close/reopen test.
@@ -73,8 +74,9 @@ The repository now contains a partial TypeScript implementation, not only docume
 - **M5 text path implemented and verified:** the scheduler's callback loads fresh settings and delivers announcements with exact `@everyone`/role mentions.
 - **M6 voice path implemented and verified offline:** eligibility rules, per-guild lock, sequential join/play/disconnect, and local PCM audio assets.
 - **M7 command layer implemented and verified offline:** six slash commands, router-owned user/guild-bound flows, canonical select-menu setup with 25-option pagination, and a settings→scheduler rebuild callback.
-- **Verification:** `npx tsc --noEmit`, `npm run build`, and all 94 tests pass across 19 test files.
-- **Known gap:** live Discord interaction/playback verification is pending (M8); audio assets are placeholder tones. See the [implementation roadmap](development/implementation-roadmap.md#current-implementation-status).
+- **M8 implemented and verified offline:** graceful shutdown with task draining and fatal process traps, a full virtual-clock end-to-end test, Docker/compose and systemd descriptors, and backup guidance.
+- **Verification:** `npx tsc --noEmit`, `npm run build`, and all 101 tests pass across 22 test files.
+- **Known gap:** live 24/7 Discord verification and real recitation audio remain manual sign-off items. See the [implementation roadmap](development/implementation-roadmap.md#current-implementation-status).
 
 The [implementation roadmap](development/implementation-roadmap.md) is the authoritative summary of what exists, what is partial, and what remains.
 
@@ -97,7 +99,5 @@ Subsystem deep-dives or supplementary technical notes if needed beyond [`technic
 - Testing strategy.
 
 ### Operations
-- Deployment and process management.
-- Configuration and secrets management.
-- Backup and recovery.
-- Monitoring, logging, and troubleshooting.
+- Done: [`operations/backup-and-recovery.md`](operations/backup-and-recovery.md) and deployment descriptors (`Dockerfile`, `docker-compose.yml`, `systemd/`).
+- Remaining: a full deployment runbook, secrets management guide, and monitoring/troubleshooting playbook.

@@ -19,12 +19,12 @@ The repository contains a working M1/M2 foundation and an implemented M3 (Locati
 | **M5** | **Implemented and verified** | Reminder handler, text builder/service, and Discord sender deliver `PRAYER_TIME_REACHED` events with exact `@everyone`/role mentions; `/test` reuses the same services safely. |
 | **M6** | **Implemented and verified (offline tests)** | `@discordjs/voice` transport, channel directory, eligibility rules, per-guild lock, sequential cycle, and local PCM assets. Live voice playback has not been verified on Discord. |
 | **M7** | **Implemented and verified (offline tests)** | Six slash commands, router with user/guild-bound flow registry, setup/settings flows, select menus with 25-option pagination, and a settings→scheduler rebuild callback. Live Discord interaction verification remains for M8. |
-| **M8** | **Not started** | No deployment descriptors, end-to-end suite, or completed crash boundaries. |
+| **M8** | **Implemented and verified (offline)** | Graceful shutdown with task draining, fatal process traps, end-to-end virtual-clock test, Docker/compose + systemd descriptors, and backup guidance. Live 24/7 verification remains a manual step. |
 
 ### Verified now
 
 - `npx tsc --noEmit` passes.
-- `npm test` reports 94 passing tests across 19 files: configuration, DI/composition, Discord client intents, message sender, commands/flows/router and command registration, persistence/settings, location, prayer times, scheduling, text announcements, reminder handler, voice announcements, audio assets, and the Location → Prayer Times, Scheduling → Persistence, Scheduler → Text Delivery, Settings → Scheduler Rebuild, and `/test` Isolation integration suites.
+- `npm test` reports 101 passing tests across 22 files: configuration, DI/composition, Discord client intents, message sender, commands/flows/router and command registration, persistence/settings, location, prayer times, scheduling, text announcements, reminder handler, voice announcements, audio assets, and the Location → Prayer Times, Scheduling → Persistence, Scheduler → Text Delivery, Settings → Scheduler Rebuild, and `/test` Isolation integration suites.
 - Migrations create `guild_settings`, `delivery_ledger`, and `schema_migrations`.
 - Settings can be saved, retrieved, partially updated, toggled, deleted, and reject invalid input.
 - Location resolves only countries/cities present in curated JSON, applies default-city and country-level calculation-method rules, and rejects unsupported selections. No external geocoding is used. The curated set covers 46 countries and 134 cities (including Arabic and Muslim-majority regions), with a data-integrity test for codes, timezones, defaults, and city-method overrides.
@@ -39,15 +39,13 @@ The repository contains a working M1/M2 foundation and an implemented M3 (Locati
 - Local audio assets are generated 48kHz stereo PCM placeholders (`assets/audio/*.pcm`) played with `StreamType.Raw`, so no ffmpeg is required. Replace them with real recitations without changing filenames.
 - Feature persistence adapters are owned by their modules (`src/modules/settings/settings-store/settings-store.ts` today), with each concern in its own folder per the [folder convention](../architecture/code-structure.md#folder-convention-applies-to-every-module); `infrastructure/persistence/` keeps only the shared connection and migrations. All modules use the same SQLite database.
 - `tsc` does not copy SQL migrations into `dist`; the `build` script runs `copy-migrations.mjs` after `tsc`, which copies migrations to `dist/infrastructure/persistence/migrations` and exits non-zero if the migrations directory is missing.
-- `unhandledRejection` is logged but does not terminate the process.
+- Fatal process events (`unhandledRejection`, `uncaughtException`) route through graceful shutdown; signals drain in-flight deliveries, close Discord and SQLite, and flush logs before exit.
 
 ### Known gaps
 
 - Live Discord voice connection/playback has not been verified; tests use fakes and real local audio assets.
 - Audio assets are placeholder tones, not real prayer recitations.
-- No command layer or `/test` behavior exists; settings can only be seeded directly in tests until M7.
-- `unhandledRejection` is logged but does not terminate the process.
-- Live Discord login and graceful shutdown against the real gateway have not been recorded as verified.
+- Live 24/7 operation on the Docker/systemd deployment target has not been recorded as verified.
 
 ---
 
@@ -305,20 +303,28 @@ Implement Discord slash commands and user interactions: administrator authorizat
 
 ## Milestone 8: Testing, Error Handling & Deployment
 
+### Status: implemented and offline-verified; live 24/7 verification remains manual
+
 ### Goal & Expected Outcome
 Harden the entire application with end-to-end integration tests, top-level error boundaries, structured process logging, database backup instructions, and production deployment scripts (systemd service / Docker container).
 
 ### Main Modules & Files Involved
-- `test/integration/` — Comprehensive integration tests covering configuration changes, restarts, and announcement dispatch
-- `src/app/bootstrap.ts` & `shutdown.ts` — Top-level unhandled rejection / uncaught exception traps
-- `data/` — Persistence backup and verification guidelines
-- `Dockerfile` / `docker-compose.yml` (or `systemd/mudhakkir.service`) — Deployment descriptors
+- `src/shared/lifecycle/task-tracker.ts` — Tracks in-flight text/voice promises for bounded shutdown draining.
+- `src/app/shutdown.ts` — Single idempotent teardown path for signals and fatal process events.
+- `src/infrastructure/persistence/storage.ts` — `closeDatabase()` with WAL checkpoint.
+- `src/shared/logging/logger.port.ts` & `pino-logger.ts` — Optional `flush()` before exit.
+- `test/integration/end-to-end-flow.test.ts` — Full virtual-clock day with real SQLite and mocked deliveries.
+- `test/unit/app/{shutdown,task-tracker}.test.ts` — Shutdown ordering and task draining.
+- `Dockerfile`, `.dockerignore`, `docker-compose.yml`, `systemd/mudhakkir.service` — Deployment descriptors.
+- `Docs/operations/backup-and-recovery.md` — Backup, restore, and retention guidance.
 
 ### Dependencies
 - **Milestones 1 through 7**.
 
 ### Essential Tests & Acceptance Criteria
-- [ ] End-to-end flow test: Initialize database, configure guild settings, advance virtual clock, verify ledger entries and mock Discord deliveries.
-- [ ] Unhandled promise rejections are logged with full stack traces and shut down the process gracefully without leaving dangling voice connections.
-- [ ] Bot successfully boots and runs in a containerized or headless Linux environment with persistent SQLite volume storage.
-- [ ] Application satisfies all non-functional requirements (resource limits, single-process operation, zero external job broker dependencies).
+- [x] End-to-end flow test: initialize database, configure guild settings, advance virtual clock, verify 10 ledger entries and 5 text + 5 voice deliveries, then restart without replay.
+- [x] Unhandled promise rejections and uncaught exceptions are logged with full stack traces and routed through graceful shutdown (stop scheduler → drain tasks → destroy Discord → close DB → flush logs → exit 1).
+- [x] In-flight deliveries are drained with a bounded grace period (`SHUTDOWN_GRACE_MS`, default 10 s); voice connections are destroyed by the transport's existing `finally`.
+- [x] Deployment descriptors exist for container (Docker/compose with persistent `data/` volume) and headless Linux (systemd unit).
+- [x] Application keeps single-process operation and zero external job broker dependencies; no Redis/queue introduced.
+- [ ] Live 24/7 Discord verification (gateway login, command propagation in both servers, audible playback) remains a manual M8 sign-off.

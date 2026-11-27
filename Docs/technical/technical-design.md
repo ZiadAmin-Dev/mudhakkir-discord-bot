@@ -236,7 +236,7 @@ Durable deduplication store preventing duplicate text and voice announcements:
 - **Tokens (`src/shared/di/tokens.ts`):** `TOKENS` symbol registry ensures type-safe, decoupled token-based resolution.
 
 ### Error Handling: `AppError` Hierarchy
-- **Status:** **Implemented**: core error model plus command/router, scheduler, reminder, and voice-channel boundaries.
+- **Status:** **Implemented**: core error model, command/router, scheduler, reminder, voice-channel boundaries, and process-level fatal traps with graceful shutdown.
 - **Rationale:**
   - Distinguishes operational/expected domain errors (`isOperational: true`) from unhandled system crashes (`isOperational: false`).
   - Base class `AppError` (`src/shared/error/app-error.ts`) carries a stable error `code` and safe user-facing message.
@@ -302,6 +302,13 @@ Recorded from the current source tree; these must be closed before the affected 
 
 | Gap | Impact | Related milestone |
 | --- | --- | --- |
-| Live Discord voice playback is unverified and audio assets are placeholder tones. | Voice behavior and `/test` isolation are verified offline with fakes and real SQLite; no real recitations yet. | M8 |
-| `unhandledRejection` is logged but does not terminate the process. | Process may continue in an unknown state, contrary to the documented target. | M8 |
-| No live Discord login verification recorded. | Connection code exists and unit tests pass, but gateway authentication is unverified. | M1/M8 |
+| Live Discord gateway/voice playback is unverified and audio assets are placeholder tones. | All flows are verified offline with fakes and real SQLite; no real recitations yet. | Manual M8 sign-off |
+| Live 24/7 operation on the deployment target is unverified. | Docker/systemd descriptors exist but have not been run against a real server. | Manual M8 sign-off |
+
+## 11. Deployment & backup (M8)
+
+- `Dockerfile` builds TypeScript in a build stage and runs a single Node process as a non-root user in the runtime stage; no build tools ship in the final image.
+- `docker-compose.yml` mounts a named volume at `/app/data` so `mudhakkir.db` survives container recreation; `.env` is supplied via `env_file`, never baked into the image.
+- `systemd/mudhakkir.service` provides the equivalent headless-Linux unit (`WorkingDirectory`, `EnvironmentFile`, `Restart=always`, `SIGINT` for graceful stop).
+- Shutdown drains in-flight deliveries, closes SQLite with a WAL checkpoint, and flushes Pino before exit; `SHUTDOWN_GRACE_MS` controls the grace period.
+- Backup and restore instructions live in [`Docs/operations/backup-and-recovery.md`](../operations/backup-and-recovery.md).

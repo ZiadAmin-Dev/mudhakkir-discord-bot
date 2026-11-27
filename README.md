@@ -86,9 +86,20 @@ In the Discord Developer Portal → **OAuth2 → URL Generator**, select scopes 
 npm test
 ```
 
+### Running continuously
+
+- Docker: `docker compose up -d --build`. The named volume keeps `data/mudhakkir.db` across container recreation.
+- Headless Linux: install `systemd/mudhakkir.service`, put the checkout at `/opt/mudhakkir` and `.env` beside it, then `systemctl enable --now mudhakkir`.
+- Shutdown is graceful: it drains in-flight announcements (`SHUTDOWN_GRACE_MS`, default 10 s), closes Discord and SQLite, and flushes logs.
+- Backup and restore instructions are in [`Docs/operations/backup-and-recovery.md`](./Docs/operations/backup-and-recovery.md).
+
+### Live verification checklist
+
+After starting the bot, confirm the logs show `Slash commands registered` with `scope: 'global'` (plus `scope: 'guild'` for `DEV_GUILD_ID`), `/setup` completes in your server, `/enable` arms reminders, and `/test type:text` shows a `[TEST]` message without pinging anyone. Global commands can take up to an hour to appear in other servers; add those server IDs to `DEV_GUILD_ID` for instant overrides.
+
 ## Status
 
-The project follows an 8-milestone roadmap. M1 (foundation), M2 (database & settings), M3 (Location and Prayer Times), M4 (scheduling and duplicate protection), M5 (text announcements), M6 (voice announcements), and M7 (slash commands and setup/settings flows) are implemented; hardening and live end-to-end verification (M8) remain. See [`Docs/development/implementation-roadmap.md`](./Docs/development/implementation-roadmap.md) for current status and known gaps.
+All 8 roadmap milestones are implemented. M1–M7 cover the feature set; M8 adds graceful shutdown, fatal process traps, an end-to-end virtual-clock test, and deployment/backup artifacts. Offline verification is complete (101 tests); live 24/7 Discord verification and real recitation audio remain manual sign-off items. See [`Docs/development/implementation-roadmap.md`](./Docs/development/implementation-roadmap.md) for current status and known gaps.
 
 ## License
 
