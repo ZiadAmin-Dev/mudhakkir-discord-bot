@@ -89,6 +89,7 @@ npm test
 ### Running continuously
 
 - Docker: `docker compose up -d --build`. The named volume keeps `data/mudhakkir.db` across container recreation.
+- Hosts that replace the app directory on redeploy (e.g. FadeHost/Laplace): set `DB_PATH` to a **full file path outside the app directory**, such as `/data/mudhakkir/mudhakkir.db`. Without it, the default `data/mudhakkir.db` is wiped with each deploy.
 - Headless Linux: install `systemd/mudhakkir.service`, put the checkout at `/opt/mudhakkir` and `.env` beside it, then `systemctl enable --now mudhakkir`.
 - Shutdown is graceful: it drains in-flight announcements (`SHUTDOWN_GRACE_MS`, default 10 s), closes Discord and SQLite, and flushes logs.
 - Backup and restore instructions are in [`Docs/operations/backup-and-recovery.md`](./Docs/operations/backup-and-recovery.md).

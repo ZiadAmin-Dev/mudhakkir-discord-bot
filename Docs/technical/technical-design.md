@@ -167,7 +167,7 @@ Shared database infrastructure (`src/infrastructure/persistence/storage.ts` and 
 ### Recommended Database: SQLite via `better-sqlite3`
 - **Status:** **Implemented** for settings persistence and schema migrations (M2).
 - **Rationale:**
-  - **Simplest Suitable for MVP:** Embedded, serverless, single-file relational database (`data/mudhakkir.db`).
+  - **Simplest Suitable for MVP:** Embedded, serverless, single-file relational database (`data/mudhakkir.db` by default, overridable with `DB_PATH` so persistent hosting volumes can be used).
   - Zero network configuration or external database server maintenance.
   - `better-sqlite3` is synchronous, extremely fast (order of magnitude faster than async SQLite wrappers), robust, and handles transactions atomically.
   - Provides reliable ACID guarantees, ensuring settings updates and delivery ledger commits never suffer file-corruption or partial writes (unlike plain JSON file read/write).

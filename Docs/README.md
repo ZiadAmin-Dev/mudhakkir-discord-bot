@@ -75,7 +75,7 @@ The repository contains a complete TypeScript MVP implementation:
 - **M6 voice path implemented and verified offline:** eligibility rules, per-guild lock, sequential join/play/disconnect, and local PCM audio assets.
 - **M7 command layer implemented and verified offline:** six slash commands, router-owned user/guild-bound flows, canonical select-menu setup with 25-option pagination, and a settings→scheduler rebuild callback.
 - **M8 implemented and verified offline:** graceful shutdown with task draining and fatal process traps, a full virtual-clock end-to-end test, Docker/compose and systemd descriptors, and backup guidance.
-- **Verification:** `npx tsc --noEmit`, `npm run build`, and all 101 tests pass across 22 test files.
+- **Verification:** `npx tsc --noEmit`, `npm run build`, and all 103 tests pass across 23 test files.
 - **Known gap:** live 24/7 Discord verification and real recitation audio remain manual sign-off items. See the [implementation roadmap](development/implementation-roadmap.md#current-implementation-status).
 
 The [implementation roadmap](development/implementation-roadmap.md) is the authoritative summary of what exists, what is partial, and what remains.

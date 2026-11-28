@@ -50,7 +50,7 @@ The current source tree is a foundation, not the complete design below:
 | Announcements | **Text, voice, and `/test` implemented.** Due events deliver text with exact mentions; approaching events run a sequential voice cycle with a per-guild lock. Tests are labelled and do not ping. Live Discord playback remains unverified. |
 | Shutdown | **Partially implemented.** The scheduler is stopped first, then the Discord client is destroyed on `SIGINT`/`SIGTERM`; voice and database teardown arrive with their components. |
 
-`npx tsc --noEmit` passes and the current test suite reports 101 passing tests. The [implementation roadmap](../development/implementation-roadmap.md) tracks milestone status and known gaps.
+`npx tsc --noEmit` passes and the current test suite reports 103 passing tests. The [implementation roadmap](../development/implementation-roadmap.md) tracks milestone status and known gaps.
 
 ## 2. Layered Architecture & Module Map
 
@@ -470,7 +470,7 @@ State is divided into durable and rebuildable categories:
 | Setup/settings interaction draft | In-memory, **Implemented** | Discord flows | Held in the router's flow registry (guild/user-bound, 5-minute expiry); discarded on restart. Whether drafts should survive restart remains Open. |
 | Logs | stdout / pino-pretty in development | Logging | **Implemented.** Logs are not a source of business state. |
 
-**Implemented persistence details:** SQLite through `better-sqlite3`, stored at `data/mudhakkir.db`, with WAL mode, foreign keys, a `schema_migrations` table, and explicit SQL migrations. The settings SQLite adapter lives in `modules/settings/`; `infrastructure/persistence/` owns only the shared connection and migrations, and all feature adapters use the same database. Settings writes are atomic upserts, and persisted rows are revalidated when loaded. Invalid persisted data raises an error rather than being silently replaced with defaults. Every feature store follows the [store convention](code-structure.md#store-convention-general-rule): explicit columns instead of `SELECT *`, parameterized queries, runtime validation of raw rows instead of type assertions, and a private `toEntity()` mapper for snake_case → camelCase conversion. Prayer calculation always uses the Standard Asr rule; no Asr variation is stored in settings.
+**Implemented persistence details:** SQLite through `better-sqlite3`, stored at `data/mudhakkir.db` by default or at the full file path in `DB_PATH`, with WAL mode, foreign keys, a `schema_migrations` table, and explicit SQL migrations. The settings SQLite adapter lives in `modules/settings/`; `infrastructure/persistence/` owns only the shared connection and migrations, and all feature adapters use the same database. Settings writes are atomic upserts, and persisted rows are revalidated when loaded. Invalid persisted data raises an error rather than being silently replaced with defaults. Every feature store follows the [store convention](code-structure.md#store-convention-general-rule): explicit columns instead of `SELECT *`, parameterized queries, runtime validation of raw rows instead of type assertions, and a private `toEntity()` mapper for snake_case → camelCase conversion. Prayer calculation always uses the Standard Asr rule; no Asr variation is stored in settings.
 
 All records are keyed by guild ID even in the single-server release. **Proposed:** this is cheap now and avoids a data migration when multi-server support becomes **Future**.
 

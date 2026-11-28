@@ -177,7 +177,7 @@ Folder layout follows the convention in [§3](#3-module-public-entry-points): im
 | Scheduling | `src/modules/scheduling/index.ts`, `src/modules/scheduling/event.types.ts`, `src/modules/scheduling/event-builder.ts`, `src/modules/scheduling/delivery-ledger.ts`, `src/modules/scheduling/delivery-ledger-store/index.ts`, `src/modules/scheduling/delivery-ledger-store/delivery-ledger-store.port.ts`, `src/modules/scheduling/delivery-ledger-store/delivery-ledger-store.ts`, `src/modules/scheduling/scheduling-service/index.ts`, `src/modules/scheduling/scheduling-service/scheduling.service.ts` |
 | Reminders | `src/modules/reminders/index.ts`, `src/modules/reminders/reminders.errors.ts`, `src/modules/reminders/reminder-handler/index.ts`, `src/modules/reminders/reminder-handler/reminder-handler.ts`, `src/modules/reminders/text/index.ts`, `src/modules/reminders/text/text-message-sender.port.ts`, `src/modules/reminders/text/text-message.builder.ts`, `src/modules/reminders/text/text-announcement.service.ts`, `src/modules/reminders/voice/index.ts`, `src/modules/reminders/voice/voice-channels.port.ts`, `src/modules/reminders/voice/channel-eligibility.ts`, `src/modules/reminders/voice/voice-cycle.ts`, `src/modules/reminders/voice/voice-coordinator.ts`, `src/modules/reminders/voice/voice-announcement.service.ts` |
 | Audio | `assets/audio/*.pcm`, `src/infrastructure/audio/audio-library.ts`, `src/infrastructure/audio/audio-player.ts`, `src/infrastructure/audio/index.ts`, `scripts/generate-audio-assets.mjs` |
-| Tests | `test/unit/config.test.ts`, `test/unit/di-container.test.ts`, `test/unit/discord-client.test.ts`, `test/unit/discord/discord-messages.test.ts`, `test/unit/discord/m7-commands.test.ts`, `test/unit/discord/register-commands.test.ts`, `test/unit/location/location.test.ts`, `test/unit/prayer-times/prayer-times.test.ts`, `test/unit/scheduling/scheduling.test.ts`, `test/unit/reminders/text-announcement.test.ts`, `test/unit/reminders/reminder-handler.test.ts`, `test/unit/reminders/voice.test.ts`, `test/unit/audio/audio-library.test.ts`, `test/unit/app/shutdown.test.ts`, `test/unit/app/task-tracker.test.ts`, `test/integration/end-to-end-flow.test.ts`, `test/integration/persistence.test.ts`, `test/integration/location-prayer-times.test.ts`, `test/integration/scheduling-persistence.test.ts`, `test/integration/scheduled-text-delivery.test.ts`, `test/integration/settings-rebuild.test.ts`, `test/integration/test-command-isolation.test.ts` |
+| Tests | `test/unit/config.test.ts`, `test/unit/di-container.test.ts`, `test/unit/discord-client.test.ts`, `test/unit/discord/discord-messages.test.ts`, `test/unit/discord/m7-commands.test.ts`, `test/unit/discord/register-commands.test.ts`, `test/unit/location/location.test.ts`, `test/unit/prayer-times/prayer-times.test.ts`, `test/unit/scheduling/scheduling.test.ts`, `test/unit/reminders/text-announcement.test.ts`, `test/unit/reminders/reminder-handler.test.ts`, `test/unit/reminders/voice.test.ts`, `test/unit/audio/audio-library.test.ts`, `test/unit/app/shutdown.test.ts`, `test/unit/app/task-tracker.test.ts`, `test/integration/end-to-end-flow.test.ts`, `test/integration/db-path.test.ts`, `test/integration/persistence.test.ts`, `test/integration/location-prayer-times.test.ts`, `test/integration/scheduling-persistence.test.ts`, `test/integration/scheduled-text-delivery.test.ts`, `test/integration/settings-rebuild.test.ts`, `test/integration/test-command-isolation.test.ts` |
 
 Everything in the tree for M1–M8 is implemented. Remaining work is live 24/7 verification and real recitation audio. The Location module uses reference files, not database tables or migrations. The scheduler's due-event callback is the reminder handler, which routes text and voice independently.
 
@@ -193,7 +193,7 @@ Everything in the tree for M1–M8 is implemented. Remaining work is live 24/7 v
 | Path | Responsibility |
 | --- | --- |
 | `src/index.ts` | Process entry point. Loads `.env`, validates configuration, initializes DI, resolves the logger and Discord client, and starts `bootstrap`. |
-| `app/config.ts` | Reads and validates environment variables (`DISCORD_TOKEN`, `CLIENT_ID`, `LOG_LEVEL`, `NODE_ENV`) using Zod. Fails fast with clear error messages. |
+| `app/config.ts` | Reads and validates environment variables (`DISCORD_TOKEN`, `CLIENT_ID`, `LOG_LEVEL`, `NODE_ENV`, optional `DEV_GUILD_ID`, `DB_PATH`, `SHUTDOWN_GRACE_MS`) using Zod. Fails fast with clear error messages. |
 | `app/composition.ts` | Composition root: creates the logger, opens SQLite, runs migrations, creates the Discord client, registers stores/services, and exposes `initContainer`. |
 | `app/bootstrap.ts` | Startup sequence: installs signal/fatal handlers with DB and task tracker, logs in to Discord, starts the scheduler on `ClientReady`, registers slash commands (global or guild-scoped), logs bot identity, and resolves. |
 | `app/shutdown.ts` | Implemented idempotent teardown: stops the scheduler, drains tracked tasks with grace, destroys Discord, checkpoints/closes SQLite, flushes logs, and exits. Handles signals and fatal process events. |
@@ -395,7 +395,7 @@ The exact lint or dependency-checking tool is **Open**. The rules must be enforc
 
 ## 6. Testing layout and dependency mocking
 
-**Current status:** the existing suite has 22 test files and reports 101 passing tests. `npx tsc --noEmit` passes. Tests use the Node.js built-in test runner (`node --test`) with TypeScript support via `tsx`.
+**Current status:** the existing suite has 23 test files and reports 103 passing tests. `npx tsc --noEmit` passes. Tests use the Node.js built-in test runner (`node --test`) with TypeScript support via `tsx`.
 
 ### Test directory layout:
 
@@ -423,6 +423,7 @@ The exact lint or dependency-checking tool is **Open**. The rules must be enforc
   - `settings-rebuild.test.ts` — A settings change through DI triggers the scheduler rebuild callback and moves the next approaching event.
   - `test-command-isolation.test.ts` — `/test` against real SQLite: `[TEST]` output with suppressed mentions, and ledger/schedule/settings unchanged.
   - `end-to-end-flow.test.ts` — Full virtual-clock day: 10 ledger entries, 5 text + 5 voice deliveries, then restart with no replay.
+  - `db-path.test.ts` — `DB_PATH` opens SQLite at the configured persistent path instead of the working-directory default.
   - `commands/` — Reserved for future live-Discord command tests.
 - `test/fixtures/` — Sample test data (pre-calculated prayer tables, valid/invalid settings JSON, test audio buffers).
 

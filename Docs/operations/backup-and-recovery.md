@@ -1,6 +1,6 @@
 # Backup and recovery
 
-Mudhakkir stores all durable state in one SQLite database at `data/mudhakkir.db`. Slash commands, schedules, and the delivery ledger are rebuildable or derived; the database and `.env` are the files that matter.
+Mudhakkir stores all durable state in one SQLite database. The default path is `data/mudhakkir.db`, but it can be overridden with the `DB_PATH` environment variable (a full file path). On hosts that replace the app directory on redeploy, set `DB_PATH` to a file on persistent storage, e.g. `/data/mudhakkir/mudhakkir.db`. Slash commands, schedules, and the delivery ledger are rebuildable or derived; the database and `.env` are the files that matter.
 
 ## What to back up
 
@@ -10,6 +10,8 @@ Mudhakkir stores all durable state in one SQLite database at `data/mudhakkir.db`
 | `data/mudhakkir.db-wal`, `data/mudhakkir.db-shm` | Yes, if copying while running | WAL mode keeps recent commits here until checkpoint. |
 | `.env` | Yes, stored separately and securely | Bot token and `CLIENT_ID`; never commit it. |
 | `assets/audio/` | Optional | Placeholder assets are reproducible; real recitations are not. |
+
+All commands below assume the default path. If `DB_PATH` is set, substitute that full file path (and its `-wal`/`-shm` siblings).
 
 ## Safe backup while the bot is running
 
