@@ -1,106 +1,98 @@
 # Mudhakkir
 
-A Discord bot that delivers prayer-time reminders to servers, with both text announcements and sequential voice-channel announcements. Calculations run entirely offline using astronomical data — no external API calls at runtime.
+Mudhakkir is a Discord bot that reminds a server when it is time for prayer. It calculates prayer times on its own computer — no prayer-time website or API is used — and can send both a text reminder and an audio announcement in voice channels.
 
-## Features
+## What it can do
 
-- **Offline prayer calculation** — uses `adhan` for local astronomical computation with multiple calculation methods.
-- **Text announcements** — configurable mention (`@everyone` or specific role) delivered to a chosen text channel.
-- **Voice announcements** — sequential per-guild audio playback across eligible voice channels with strict eligibility rules.
-- **Durable scheduling** — in-process timer scheduler with delivery ledger preventing duplicate reminders across restarts.
-- **Server settings** — persistent configuration via SQLite; survives process restarts.
-- **Slash commands** — guided `/setup`, `/settings`, `/prayer-times`, `/test`, `/enable`, `/disable`.
+- Gives you the five prayer times for your configured city and timezone.
+- Sends a text reminder at each prayer time with either `@everyone` or one chosen role.
+- Plays a short recitation in eligible voice channels shortly before each prayer.
+- Remembers each server's settings across restarts and avoids sending the same reminder twice.
+- Gives administrators simple slash commands to set everything up.
 
-## Tech stack
+## Run it on your computer
 
-- TypeScript (ESM), Node.js 20+
-- `discord.js` v14
-- `better-sqlite3` for persistence
-- `pino` for structured logging
-- `tsyringe` for dependency injection
-- `zod` for validation
+You will need Node.js (22+ recommended; the Docker image uses 22), npm, and a Discord bot application from the [Discord Developer Portal](https://discord.com/developers/applications).
 
-## Project layout
+1. Copy the example environment file:
 
-```text
-src/
-├── app/                 # Composition root, bootstrap, config, shutdown
-├── discord/             # Client, commands, flows, adapters
-├── infrastructure/      # Shared SQLite connection/migrations, logging, audio
-├── modules/             # Domain: settings, location, prayer-times, scheduling, reminders; each owns its store adapter
-└── shared/              # DI tokens, errors, clock, logger contract
-Docs/                    # Product, architecture, technical, development docs
-```
-
-See [`Docs/`](./Docs/) for product requirements, business rules, system architecture, code structure, technical design, and the implementation roadmap.
-
-## Getting started
-
-### Prerequisites
-
-- Node.js 20 or newer
-- npm 10 or newer
-- A Discord application/bot token from the [Discord Developer Portal](https://discord.com/developers/applications)
-
-### Setup
-
-1. Clone the repository.
-2. Copy `.env.example` to `.env` and fill in your values:
-
-   ```env
-   DISCORD_TOKEN=your-bot-token
-   CLIENT_ID=your-application-id
-   DEV_GUILD_ID=your-test-server-id   # optional: instant overrides (comma-separate several servers)
-   LOG_LEVEL=debug
-   NODE_ENV=development
+   ```bash
+   cp .env.example .env
    ```
 
-   Slash commands are **always registered globally**, so they work in every server the bot joins (Discord may cache them for up to an hour). `DEV_GUILD_ID` is optional and adds instant guild-scoped overrides for test servers; comma-separate several IDs if needed.
+2. Fill in the two required values in `.env` (never share your token):
 
-3. Install dependencies:
+   ```env
+   DISCORD_TOKEN=your_bot_token
+   CLIENT_ID=your_application_id
+   ```
+
+   Optional settings are explained in the file itself:
+   - `DEV_GUILD_ID` — makes commands appear instantly in one or more test servers.
+   - `DB_PATH` — moves the SQLite database to persistent storage.
+   - `LOG_LEVEL` and `NODE_ENV` — logging and runtime mode.
+   - `SHUTDOWN_GRACE_MS` — how long to wait for announcements when stopping.
+
+3. Install and start:
 
    ```bash
    npm install
-   ```
-
-4. Run in development mode:
-
-   ```bash
    npm run dev
    ```
 
-5. Build for production:
+   The bot logs in to Discord and prints `Mudhakkir connected to Discord Gateway successfully` when it is ready.
 
-   ```bash
-   npm run build
-   npm start
-   ```
+## Invite the bot to your server
 
-### Invite the bot for local testing
+In the Developer Portal, go to **OAuth2 → URL Generator**:
 
-In the Discord Developer Portal → **OAuth2 → URL Generator**, select scopes `bot` and `applications.commands`, and bot permissions **View Channel**, **Send Messages**, **Mention Everyone**, **Connect**, and **Speak**. Open the generated URL and authorize the bot in your test server. Leave privileged gateway intents disabled. `/setup` uses Discord's native channel/role pickers, so Developer Mode is not required. `/test` output is labelled `[TEST]` and suppresses mentions — it never pings members or touches the delivery ledger.
+- Scopes: `bot` and `applications.commands`
+- Permissions: **View Channel**, **Send Messages**, **Mention Everyone**, **Connect**, **Speak**
 
-### Testing
+Open the generated URL and authorize the bot in your test server. You do not need to enable privileged gateway intents.
+
+## Using the bot
+
+| Command | What it does |
+| --- | --- |
+| `/setup` | Guided setup: choose country, city (or default), reminder channel, mention target, and lead time. |
+| `/enable` | Turn on automatic reminders after setup. |
+| `/disable` | Pause automatic reminders. |
+| `/prayer-times` | Show today's five prayer times for your configured location. |
+| `/settings` | View your settings and change the voice lead time. |
+| `/test` | Try the text or voice announcement safely. Test messages are labelled `[TEST]` and never ping anyone. |
+
+New servers may take up to an hour to show global slash commands. If you want commands instantly in a test server, add its ID to `DEV_GUILD_ID` and restart the bot.
+
+## Keeping it online
+
+- **Docker:** `docker compose up -d --build`. The `data` volume keeps your database safe when the container is rebuilt.
+- **Linux server:** use `systemd/mudhakkir.service`; put the app in `/opt/mudhakkir` and your `.env` beside it.
+- **FadeHost/Laplace:** it replaces the app directory on each deploy, so set `DB_PATH` to a real file outside it, for example:
+
+  ```env
+  DB_PATH=/data/mudhakkir/mudhakkir.db
+  ```
+
+Backups and restore steps are in [`Docs/operations/backup-and-recovery.md`](./Docs/operations/backup-and-recovery.md).
+
+## Developer checks
 
 ```bash
-npm test
+npm test          # all unit and integration tests
+npx tsc --noEmit  # type check
+npm run build     # compile and copy SQL migrations
+npm start         # run the compiled app
 ```
 
-### Running continuously
+## Where to learn more
 
-- Docker: `docker compose up -d --build`. The named volume keeps `data/mudhakkir.db` across container recreation.
-- Hosts that replace the app directory on redeploy (e.g. FadeHost/Laplace): set `DB_PATH` to a **full file path outside the app directory**, such as `/data/mudhakkir/mudhakkir.db`. Without it, the default `data/mudhakkir.db` is wiped with each deploy.
-- Headless Linux: install `systemd/mudhakkir.service`, put the checkout at `/opt/mudhakkir` and `.env` beside it, then `systemctl enable --now mudhakkir`.
-- Shutdown is graceful: it drains in-flight announcements (`SHUTDOWN_GRACE_MS`, default 10 s), closes Discord and SQLite, and flushes logs.
-- Backup and restore instructions are in [`Docs/operations/backup-and-recovery.md`](./Docs/operations/backup-and-recovery.md).
-
-### Live verification checklist
-
-After starting the bot, confirm the logs show `Slash commands registered` with `scope: 'global'` (plus `scope: 'guild'` for `DEV_GUILD_ID`), `/setup` completes in your server, `/enable` arms reminders, and `/test type:text` shows a `[TEST]` message without pinging anyone. Global commands can take up to an hour to appear in other servers; add those server IDs to `DEV_GUILD_ID` for instant overrides.
+- [`AGENTS.md`](./AGENTS.md) — practical guide for coding agents.
+- [`Docs/`](./Docs/) — product rules, architecture, technical decisions, conventions, roadmap, and operations.
 
 ## Status
 
-All 8 roadmap milestones are implemented. M1–M7 cover the feature set; M8 adds graceful shutdown, fatal process traps, an end-to-end virtual-clock test, and deployment/backup artifacts. Offline verification is complete (101 tests); live 24/7 Discord verification and real recitation audio remain manual sign-off items. See [`Docs/development/implementation-roadmap.md`](./Docs/development/implementation-roadmap.md) for current status and known gaps.
+All eight roadmap milestones are implemented. The offline test suite has 103 passing tests. Live 24/7 Discord verification is still a manual step. See [`Docs/development/implementation-roadmap.md`](./Docs/development/implementation-roadmap.md) for details.
 
 ## License
 
