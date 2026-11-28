@@ -18,8 +18,12 @@ export const EnvSchema = z.object({
   NODE_ENV: z
     .enum(['development', 'production', 'test'])
     .default('development'),
-  // dotenv parses `DEV_GUILD_ID=` as an empty string; treat that as "unset".
+  // dotenv parses blank optional values as empty strings; treat those as "unset".
   DEV_GUILD_ID: z
+    .string()
+    .optional()
+    .transform((value) => (value?.trim() ? value.trim() : undefined)),
+  DB_PATH: z
     .string()
     .optional()
     .transform((value) => (value?.trim() ? value.trim() : undefined)),

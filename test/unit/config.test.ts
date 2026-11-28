@@ -49,6 +49,22 @@ describe('App Configuration (Milestone 1)', () => {
     assert.equal(set.DEV_GUILD_ID, '123456789');
   });
 
+  it('should treat a blank DB_PATH as unset and trim a real value', () => {
+    const blank = loadConfig({
+      DISCORD_TOKEN: 'token_abc',
+      CLIENT_ID: 'client_xyz',
+      DB_PATH: '   '
+    } as unknown as NodeJS.ProcessEnv);
+    assert.equal(blank.DB_PATH, undefined);
+
+    const set = loadConfig({
+      DISCORD_TOKEN: 'token_abc',
+      CLIENT_ID: 'client_xyz',
+      DB_PATH: '  /data/mudhakkir/mudhakkir.db  '
+    } as unknown as NodeJS.ProcessEnv);
+    assert.equal(set.DB_PATH, '/data/mudhakkir/mudhakkir.db');
+  });
+
   it('should coerce SHUTDOWN_GRACE_MS and default it to 10 seconds', () => {
     const minimal = loadConfig({
       DISCORD_TOKEN: 'token_abc',

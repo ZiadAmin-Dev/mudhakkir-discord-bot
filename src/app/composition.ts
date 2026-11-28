@@ -86,7 +86,7 @@ export function initContainer(
   validateAudioAssets(logger);
 
   // 4. Database & Migrations
-  const dbPath = customDbPath ?? path.resolve(process.cwd(), 'data/mudhakkir.db');
+  const dbPath = customDbPath ?? config.DB_PATH ?? path.resolve(process.cwd(), 'data/mudhakkir.db');
   const db = createDatabase(dbPath, logger);
   const migrationsDir = path.resolve(__dirname, '../infrastructure/persistence/migrations');
   runMigrations(db, migrationsDir, logger);
